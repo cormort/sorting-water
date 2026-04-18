@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>水瓶顏色分類遊戲 - 音效動態版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
+
+        body {
+            font-family: 'Nunito', 'Segoe UI', sans-serif;
+            background: radial-gradient(circle at 50% 0%, #2b2b45 0%, #0f0f1b 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh; 
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow: hidden; 
+        }
+
+        h1 {
+            text-align: center;
+            background: linear-gradient(to right, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 4px 10px rgba(0, 168, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        /* --- 音量控制按鈕 --- */
+        #mute-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            padding: 8px 15px;
+            font-size: 1rem;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+            z-index: 1000;
+        }
+        #mute-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* --- 首頁樣式 --- */
+        #home-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        .mode-btn {
+            font-weight: bold;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .mode-btn::after {
+            content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+            transform: skewX(-20deg); transition: 0.5s;
+        }
+        .mode-btn:hover::after { left: 150%; }
+        .mode-btn:active { transform: scale(0.95); }
+
+        .btn-stopwatch { background: linear-gradient(135deg, #00a8ff, #0097e6); color: white; }
+        .btn-countdown { background: linear-gradient(135deg, #ff4757, #e84118); color: white; }
+        .btn-normal { background: linear-gradient(135deg, #2ed573, #1e90ff); color: white; }
+
+        /* --- 遊戲畫面 --- */
+        #game-screen {
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+        }
+
+        .header-controls {
+            display: flex;
+            justify-content: center;
+        }
+
+        .action-btn {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(5px);
+        }
+        .action-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+        .action-btn:active { transform: translateY(0); }
+
+        #timer-display {
+            font-family: monospace;
+            background: rgba(0,0,0,0.4);
+            color: #fbc531;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.1);
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #message {
+            font-weight: 900;
+            text-align: center;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            min-height: 30px;
+        }
+
+        #game-board {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 100%; 
+            position: relative;
+        }
+
+        /* --- 精緻擬真水瓶 --- */
+        .tube {
+            background: rgba(255, 255, 255, 0.03);
+            border: solid rgba(255, 255, 255, 0.3);
+            border-top: none;
+            display: flex;
+            flex-direction: column-reverse;
+            cursor: pointer;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, z-index 0s;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 10px 20px rgba(0,0,0,0.3);
+            padding: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tube::after {
+            content: '';
+            position: absolute;
+            top: 2%; left: 10%; width: 25%; height: 96%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 100%);
+            border-radius: 10px;
+            pointer-events: none; 
+            z-index: 10;
+        }
+
+        .tube.selected {
+            border-color: #fff;
+            transform: translateY(-20px) scale(1.05); 
+            z-index: 50; 
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px) rotate(-2deg); }
+            50% { transform: translateX(4px) rotate(2deg); }
+            75% { transform: translateX(-4px) rotate(-2deg); }
+        }
+        .tube.shake {
+            animation: shake 0.3s ease-in-out;
+            border-color: #ff4757;
+        }
+
+        /* --- 液體樣式 --- */
+        .liquid {
+            width: 100%;
+            height: 25%; 
+            transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.3);
+            position: relative;
+            border-radius: 4px;
+        }
+
+        .liquid:first-child {
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 18px;
+        }
+
+        .liquid::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 50%;
+            opacity: 0.7;
+        }
+
+        .color-1 { background: linear-gradient(180deg, #ff6b81, #ff4757); } 
+        .color-2 { background: linear-gradient(180deg, #70a1ff, #1e90ff); } 
+        .color-3 { background: linear-gradient(180deg, #7bed9f, #2ed573); } 
+        .color-4 { background: linear-gradient(180deg, #eccc68, #ffa502); } 
+        .color-5 { background: linear-gradient(180deg, #a4b0be, #57606f); } 
+        .color-6 { background: linear-gradient(180deg, #ff7f50, #ff6348); } 
+        .color-7 { background: linear-gradient(180deg, #16a085, #1abc9c); } 
+        .color-8 { background: linear-gradient(180deg, #9b59b6, #8e44ad); } 
+        .color-9 { background: linear-gradient(180deg, #e056fd, #be2edd); } 
+        .color-10{ background: linear-gradient(180deg, #ffeaa7, #fdcb6e); } 
+        
+        .color-hidden { 
+            background: repeating-linear-gradient(45deg, #2f3542, #2f3542 10px, #353b48 10px, #353b48 20px);
+            color: #747d8c;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .color-hidden::before { display: none; } 
+
+        .confetti {
+            position: absolute;
+            width: 10px; height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            z-index: 999;
+            border-radius: 2px;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* --- 響應式佈局 --- */
+        @media (min-width: 769px) {
+            h1 { font-size: 2.2rem; margin-bottom: 20px; } 
+            #home-screen { padding: 40px; }
+            .mode-btn { width: 250px; padding: 15px; margin: 10px 0; font-size: 1.2rem; }
+            .header-controls { gap: 15px; margin-bottom: 15px; }
+            .action-btn { padding: 8px 16px; font-size: 1rem; } 
+            #timer-display { font-size: 1.8rem; padding: 6px 20px; border-radius: 12px; margin-bottom: 15px; letter-spacing: 2px; } 
+            #message { font-size: 1.4rem; margin-bottom: 15px; } 
+            #game-board { gap: 18px; padding: 10px; max-width: 1000px; }
+            .tube { width: 55px; height: 220px; border-width: 3px; border-radius: 0 0 25px 25px; }
+            .liquid { font-size: 1.5rem; border-radius: 5px; }
+            .liquid:first-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.4rem; margin: 10px 0; }
+            #home-screen { padding: 25px; width: 80%; max-width: 300px; }
+            .mode-btn { width: 100%; padding: 12px; margin: 8px 0; font-size: 1.1rem; }
+            .header-controls { gap: 10px; margin-bottom: 10px; }
+            .action-btn { padding: 6px 12px; font-size: 0.9rem; }
+            #timer-display { font-size: 1.3rem; padding: 4px 15px; border-radius: 8px; margin-bottom: 10px; letter-spacing: 1px; }
+            #message { font-size: 1.1rem; margin-bottom: 10px; }
+            #game-board { gap: 8px; padding: 5px; }
+            .tube { width: 38px; height: 160px; border-width: 2px; border-radius: 0 0 18px 18px; }
+            .liquid { font-size: 1.1rem; border-radius: 3px; }
+            .liquid:first-child { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <button id="mute-btn" onclick="toggleMute()">🔊 音效: 開</button>
+
+    <div id="home-screen">
+        <h1 style="margin-bottom: 10px;">水瓶分類 <span style="font-size:0.6em; color: #fbc531;-webkit-text-fill-color:#fbc531;">盲猜版</span></h1>
+        <p style="margin-bottom: 25px; font-size: 1.1rem; color: #ced6e0; font-weight:bold;">選擇難度與模式：</p>
+        
+        <button class="mode-btn btn-stopwatch" onclick="startGame('stopwatch')">⏱️ 累積計時挑戰</button>
+        <button class="mode-btn btn-countdown" onclick="startGame('countdown')">⏳ 極限 90 秒</button>
+        <button class="mode-btn btn-normal" onclick="startGame('normal')">☕ 輕鬆解謎</button>
+    </div>
+
+    <div id="game-screen">
+        <h1>Color Sort <span style="font-size: 0.5em; color: #fbc531;-webkit-text-fill-color:#fbc531;">PRO</span></h1>
+        
+        <div class="header-controls">
+            <button class="action-btn" onclick="backToHome()">🏠 回主選單</button>
+            <button class="action-btn" onclick="resetCurrentGame()">🔄 重新洗牌</button>
+        </div>
+
+        <div id="timer-display">00:00</div>
+        <div id="message"></div>
+        <div id="game-board"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 音效引擎 (Web Audio API)
+        // ==========================================
+        let audioCtx = null;
+        let isMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('mute-btn');
+            btn.innerText = isMuted ? '🔇 音效: 關' : '🔊 音效: 開';
+            btn.style.color = isMuted ? '#ff4757' : 'white';
+            if (!isMuted) initAudio();
+        }
+
+        // 產生基礎合成音
+        function playTone(frequency, type, duration, vol = 0.05) {
+            if (isMuted || !audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        const SFX = {
+            click: () => playTone(600, 'sine', 0.1, 0.05),
+            error: () => playTone(150, 'sawtooth', 0.2, 0.08),
+            pour: () => {
+                // 倒水：模擬音調連續上升的咕嚕聲
+                for(let i=0; i<4; i++) {
+                    setTimeout(() => playTone(300 + (i*80), 'sine', 0.15, 0.05), i * 100);
+                }
+            },
+            win: () => {
+                // 過關：C大調琶音 (C4, E4, G4, C5)
+                const notes = [261.63, 329.63, 392.00, 523.25];
+                notes.forEach((freq, i) => {
+                    setTimeout(() => playTone(freq, 'sine', 0.4, 0.1), i * 150);
+                });
+            }
+        };
+
+        // 監聽第一次點擊畫面以解鎖瀏覽器音效限制
+        document.body.addEventListener('click', () => {
+            if(!isMuted) initAudio();
+        }, { once: true });
+
+
+        // ==========================================
+        // 遊戲核心邏輯
+        // ==========================================
+        const TUBE_CAPACITY = 4;
+        const COUNTDOWN_SECONDS = 90; 
+        
+        const mobileLevel = [
+            [1, 5, 3, 2], [6, 4, 1, 5], [2, 3, 6, 4], 
+            [5, 1, 2, 6], [4, 6, 5, 3], [3, 2, 4, 1], 
+            [7, 8, 9, 7], [8, 9, 7, 8], [9, 7, 8, 9], 
+            [], [] 
+        ];
+
+        const desktopLevel = [
+            [1, 5, 3, 2], [6, 4, 1, 5], [2, 3, 6, 4], [5, 1, 2, 6],           
+            [4, 6, 5, 3], [3, 2, 4, 1], [7, 8, 9, 10], [8, 9, 10, 7], 
+            [9, 10, 7, 8], [10, 7, 8, 9],
+            [], [] 
+        ];
+
+        let tubes = [];
+        let selectedTubeIndex = null;
+        let isGameOver = false;
+        let isAnimating = false; 
+        
+        let timerInterval = null;
+        let currentTime = 0;
+        let gameMode = 'stopwatch';
+
+        function getLevelByScreenSize() {
+            return window.innerWidth <= 768 ? mobileLevel : desktopLevel;
+        }
+
+        function startGame(mode) {
+            SFX.click();
+            gameMode = mode;
+            document.getElementById('home-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            resetCurrentGame();
+        }
+
+        function backToHome() {
+            SFX.click();
+            clearInterval(timerInterval);
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('home-screen').style.display = 'flex';
+            document.querySelectorAll('.confetti').forEach(e => e.remove());
+        }
+
+        function resetCurrentGame() {
+            SFX.click();
+            document.querySelectorAll('.confetti').forEach(e => e.remove()); 
+            const currentLevel = getLevelByScreenSize();
+            tubes = currentLevel.map(tube => [...tube]);
+            
+            selectedTubeIndex = null;
+            isGameOver = false;
+            isAnimating = false;
+            
+            const msgEl = document.getElementById('message');
+            msgEl.innerText = "";
+            msgEl.style.color = "#2ed573";
+
+            clearInterval(timerInterval);
+            if (gameMode === 'countdown') {
+                currentTime = COUNTDOWN_SECONDS;
+            } else {
+                currentTime = 0; 
+            }
+
+            updateTimerDisplay();
+
+            if (gameMode !== 'normal') {
+                timerInterval = setInterval(tickTimer, 1000);
+            } else {
+                document.getElementById('timer-display').innerText = "∞";
+            }
+
+            renderBoard();
+        }
+
+        function tickTimer() {
+            if (isGameOver) return;
+
+            if (gameMode === 'countdown') {
+                currentTime--;
+                if (currentTime <= 0) {
+                    currentTime = 0;
+                    isGameOver = true;
+                    clearInterval(timerInterval);
+                    const msgEl = document.getElementById('message');
+                    msgEl.innerText = "時間到！挑戰失敗 💀";
+                    msgEl.style.color = "#ff4757"; 
+                    SFX.error();
+                }
+            } else if (gameMode === 'stopwatch') {
+                currentTime++;
+            }
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            if (gameMode === 'normal') return;
+            const m = Math.floor(currentTime / 60).toString().padStart(2, '0');
+            const s = (currentTime % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${m}:${s}`;
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+
+            tubes.forEach((tubeContent, index) => {
+                const tubeDiv = document.createElement('div');
+                tubeDiv.classList.add('tube');
+                tubeDiv.id = `tube-${index}`; 
+
+                if (selectedTubeIndex === index) {
+                    tubeDiv.classList.add('selected');
+                    if(tubeContent.length > 0) {
+                        const topColor = tubeContent[tubeContent.length - 1];
+                        tubeDiv.style.boxShadow = `0 15px 30px rgba(255,255,255,0.2), 0 0 20px var(--color-${topColor})`;
+                    }
+                }
+
+                tubeDiv.onclick = () => handleTubeClick(index);
+
+                let topColor = tubeContent.length > 0 ? tubeContent[tubeContent.length - 1] : null;
+                let hideFromIndex = -1; 
+                for (let i = tubeContent.length - 1; i >= 0; i--) {
+                    if (tubeContent[i] !== topColor) {
+                        hideFromIndex = i;
+                        break; 
+                    }
+                }
+
+                tubeContent.forEach((color, i) => {
+                    const liquidDiv = document.createElement('div');
+                    liquidDiv.classList.add('liquid');
+                    
+                    if (i <= hideFromIndex) {
+                        liquidDiv.classList.add('color-hidden');
+                        liquidDiv.innerText = '?'; 
+                    } else {
+                        liquidDiv.classList.add(`color-${color}`);
+                        liquidDiv.innerText = ''; 
+                    }
+                    
+                    tubeDiv.appendChild(liquidDiv);
+                });
+
+                board.appendChild(tubeDiv);
+            });
+        }
+
+        function canPour(sourceIdx, targetIdx) {
+            const sourceTube = tubes[sourceIdx];
+            const targetTube = tubes[targetIdx];
+
+            if (sourceTube.length === 0 || targetTube.length >= TUBE_CAPACITY) return false; 
+
+            const topColorSource = sourceTube[sourceTube.length - 1];
+            const topColorTarget = targetTube.length > 0 ? targetTube[targetTube.length - 1] : null;
+
+            return (topColorTarget === null || topColorTarget === topColorSource);
+        }
+
+        function executePour(sourceIdx, targetIdx) {
+            const sourceTube = tubes[sourceIdx];
+            const targetTube = tubes[targetIdx];
+            const topColorSource = sourceTube[sourceTube.length - 1];
+            
+            let pourAmount = 0;
+            let availableSpace = TUBE_CAPACITY - targetTube.length;
+
+            for (let i = sourceTube.length - 1; i >= 0; i--) {
+                if (sourceTube[i] === topColorSource && pourAmount < availableSpace) {
+                    pourAmount++;
+                } else {
+                    break;
+                }
+            }
+
+            for (let i = 0; i < pourAmount; i++) {
+                targetTube.push(sourceTube.pop());
+            }
+        }
+
+        function handleTubeClick(index) {
+            if (isGameOver || isAnimating) return; 
+
+            if (selectedTubeIndex === null) {
+                if (tubes[index].length > 0) {
+                    SFX.click();
+                    selectedTubeIndex = index;
+                    renderBoard();
+                } else {
+                    triggerShake(index); 
+                }
+            } else if (selectedTubeIndex === index) {
+                SFX.click();
+                selectedTubeIndex = null;
+                renderBoard();
+            } else {
+                if (canPour(selectedTubeIndex, index)) {
+                    isAnimating = true; 
+                    SFX.pour(); // 播放倒水音效
+                    
+                    animatePour(selectedTubeIndex, index, () => {
+                        executePour(selectedTubeIndex, index);
+                        selectedTubeIndex = null;
+                        isAnimating = false; 
+                        renderBoard();
+                        checkWinCondition();
+                    });
+                } else {
+                    triggerShake(index);
+                }
+            }
+        }
+
+        function animatePour(sourceIdx, targetIdx, callback) {
+            const sourceEl = document.getElementById(`tube-${sourceIdx}`);
+            const targetEl = document.getElementById(`tube-${targetIdx}`);
+
+            const sRect = sourceEl.getBoundingClientRect();
+            const tRect = targetEl.getBoundingClientRect();
+
+            let dx = tRect.left - sRect.left;
+            let dy = tRect.top - sRect.top - 30; 
+
+            let rotateDeg = dx >= 0 ? 75 : -75;
+
+            if (dx >= 0) {
+                dx -= sRect.width / 2; 
+            } else {
+                dx += sRect.width / 2; 
+            }
+
+            sourceEl.style.zIndex = '1000';
+            sourceEl.style.transformOrigin = "top center"; 
+            sourceEl.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), z-index 0s';
+            sourceEl.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotateDeg}deg)`;
+
+            setTimeout(() => {
+                callback();
+            }, 400); 
+        }
+
+        function triggerShake(index) {
+            SFX.error(); // 播放錯誤音效
+            const tubeDiv = document.getElementById(`tube-${index}`);
+            tubeDiv.classList.add('shake');
+            setTimeout(() => tubeDiv.classList.remove('shake'), 300);
+        }
+
+        function checkWinCondition() {
+            const hasWon = tubes.every(tube => {
+                if (tube.length === 0) return true;
+                if (tube.length !== TUBE_CAPACITY) return false; 
+                
+                const firstColor = tube[0];
+                return tube.every(color => color === firstColor); 
+            });
+
+            if (hasWon) {
+                isGameOver = true;
+                clearInterval(timerInterval); 
+                
+                const msgEl = document.getElementById('message');
+                msgEl.style.color = "#2ed573";
+                
+                if (gameMode === 'stopwatch') {
+                    msgEl.innerText = `過關！🎉 總耗時：${document.getElementById('timer-display').innerText}`;
+                } else if (gameMode === 'countdown') {
+                    msgEl.innerText = `極限過關！🔥 剩餘：${document.getElementById('timer-display').innerText}`;
+                } else {
+                    msgEl.innerText = "太棒了！順利過關 🎉";
+                }
+                
+                triggerWinAnimation();
+            }
+        }
+
+        function triggerWinAnimation() {
+            SFX.win(); // 播放過關和弦音效
+            const colors = ['#ff4757', '#1e90ff', '#2ed573', '#ffa502', '#e056fd'];
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.classList.add('confetti');
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDuration = Math.random() * 2 + 1 + 's';
+                    document.body.appendChild(confetti);
+                }, i * 50);
+            }
+        }
+    </script>
+</body>
+</html>
