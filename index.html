@@ -208,21 +208,21 @@
             opacity: 0.7;
         }
 
-        .color-1 { background: linear-gradient(180deg, #ff6b81, #ff4757); } 
+.color-1 { background: linear-gradient(180deg, #ff6b81, #ff4757); } 
         .color-2 { background: linear-gradient(180deg, #70a1ff, #1e90ff); } 
         .color-3 { background: linear-gradient(180deg, #7bed9f, #2ed573); } 
         .color-4 { background: linear-gradient(180deg, #eccc68, #ffa502); } 
         .color-5 { background: linear-gradient(180deg, #a4b0be, #57606f); } 
         .color-6 { background: linear-gradient(180deg, #ff7f50, #ff6348); } 
-        .color-7 { background: linear-gradient(180deg, #16a085, #1abc9c); } 
-        .color-8 { background: linear-gradient(180deg, #9b59b6, #8e44ad); } 
-        .color-9 { background: linear-gradient(180deg, #e056fd, #be2edd); } 
+        .color-7 { background: linear-gradient(180deg, #1abc9c, #16a085); } 
+        .color-8 { background: linear-gradient(180deg, #a29bfe, #6c5ce7); } 
+        .color-9 { background: linear-gradient(180deg, #fd79a8, #e84393); } 
         .color-10{ background: linear-gradient(180deg, #ffeaa7, #fdcb6e); } 
-        .color-11{ background: linear-gradient(180deg, #ff9ff3, #f368e0); } 
-        .color-12{ background: linear-gradient(180deg, #54a0ff, #2e86de); } 
-        .color-13{ background: linear-gradient(180deg, #5f27cd, #341f97); } 
-        .color-14{ background: linear-gradient(180deg, #ff6b6b, #ee5253); } 
-        .color-15{ background: linear-gradient(180deg, #0abde3, #00d2d3); } 
+        .color-11{ background: linear-gradient(180deg, #55efc4, #00b894); } 
+        .color-12{ background: linear-gradient(180deg, #74b9ff, #0984e3); } 
+        .color-13{ background: linear-gradient(180deg, #dfe6e9, #b2bec3); } 
+        .color-14{ background: linear-gradient(180deg, #fab1a0, #e17055); } 
+        .color-15{ background: linear-gradient(180deg, #636e72, #2d3436); }
         
         .color-hidden { 
             background: repeating-linear-gradient(45deg, #2f3542, #2f3542 10px, #353b48 10px, #353b48 20px);
@@ -413,32 +413,47 @@
             const totalTubes = numFilledTubes + numEmptyTubes;
             const capacity = 4;
             
-            const allColors = [];
-            for (let c = 1; c <= numColors; c++) {
-                for (let i = 0; i < capacity; i++) {
-                    allColors.push(c);
-                }
+            let solvedState = [];
+            for (let i = 0; i < numFilledTubes; i++) {
+                solvedState.push(Array(capacity).fill(i + 1));
+            }
+            for (let i = 0; i < numEmptyTubes; i++) {
+                solvedState.push([]);
             }
             
-            for (let i = allColors.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [allColors[i], allColors[j]] = [allColors[j], allColors[i]];
+            const moves = [];
+            for (let m = 0; m < 50; m++) {
+                const validMoves = getValidMoves(solvedState, capacity);
+                if (validMoves.length === 0) break;
+                const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+                moves.push(move);
+                solvedState = applyMove(solvedState, move[0], move[1]);
             }
             
-            const tubes = [];
-            for (let i = 0; i < totalTubes; i++) {
-                if (i < numFilledTubes) {
-                    const tube = [];
-                    for (let j = 0; j < capacity; j++) {
-                        tube.push(allColors.pop());
+            return solvedState;
+        }
+
+        function getValidMoves(state, capacity) {
+            const moves = [];
+            for (let from = 0; from < state.length; from++) {
+                if (state[from].length === 0) continue;
+                const topColor = state[from][state[from].length - 1];
+                for (let to = 0; to < state.length; to++) {
+                    if (from === to) continue;
+                    if (state[to].length >= capacity) continue;
+                    if (state[to].length === 0 || state[to][state[to].length - 1] === topColor) {
+                        moves.push([from, to]);
                     }
-                    tubes.push(tube);
-                } else {
-                    tubes.push([]);
                 }
             }
-            
-            return tubes;
+            return moves;
+        }
+
+        function applyMove(state, from, to) {
+            const newState = state.map(tube => [...tube]);
+            const color = newState[from].pop();
+            newState[to].push(color);
+            return newState;
         }
 
         function shuffleLevel(level) {
