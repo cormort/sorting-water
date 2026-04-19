@@ -218,6 +218,11 @@
         .color-8 { background: linear-gradient(180deg, #9b59b6, #8e44ad); } 
         .color-9 { background: linear-gradient(180deg, #e056fd, #be2edd); } 
         .color-10{ background: linear-gradient(180deg, #ffeaa7, #fdcb6e); } 
+        .color-11{ background: linear-gradient(180deg, #ff9ff3, #f368e0); } 
+        .color-12{ background: linear-gradient(180deg, #54a0ff, #2e86de); } 
+        .color-13{ background: linear-gradient(180deg, #5f27cd, #341f97); } 
+        .color-14{ background: linear-gradient(180deg, #ff6b6b, #ee5253); } 
+        .color-15{ background: linear-gradient(180deg, #0abde3, #00d2d3); } 
         
         .color-hidden { 
             background: repeating-linear-gradient(45deg, #2f3542, #2f3542 10px, #353b48 10px, #353b48 20px);
@@ -274,11 +279,17 @@
 
     <div id="home-screen">
         <h1 style="margin-bottom: 10px;">水瓶分類 <span style="font-size:0.6em; color: #fbc531;-webkit-text-fill-color:#fbc531;">盲猜版</span></h1>
-        <p style="margin-bottom: 25px; font-size: 1.1rem; color: #ced6e0; font-weight:bold;">選擇難度與模式：</p>
+        <p style="margin-bottom: 15px; font-size: 1.1rem; color: #ced6e0; font-weight:bold;">選擇難度：</p>
         
-        <button class="mode-btn btn-stopwatch" onclick="startGame('stopwatch')">⏱️ 累積計時挑戰</button>
-        <button class="mode-btn btn-countdown" onclick="startGame('countdown')">⏳ 極限 90 秒</button>
-        <button class="mode-btn btn-normal" onclick="startGame('normal')">☕ 輕鬆解謎</button>
+        <button class="mode-btn btn-normal" style="background: linear-gradient(135deg, #2ed573, #1e90ff);" onclick="startGame('normal', 6)">🌱 簡單 (6 色)</button>
+        <button class="mode-btn btn-stopwatch" style="background: linear-gradient(135deg, #ffa502, #ff6348);" onclick="startGame('stopwatch', 8)">🔥 中等 (8 色)</button>
+        <button class="mode-btn btn-countdown" style="background: linear-gradient(135deg, #ff4757, #e84118);" onclick="startGame('countdown', 10)">💀 困難 (10 色)</button>
+        
+        <p style="margin: 20px 0 15px; font-size: 1rem; color: #ced6e0; font-weight:bold;">選擇模式：</p>
+        
+        <button class="mode-btn btn-stopwatch" onclick="startGame('stopwatch', currentDifficulty || 8)">⏱️ 計時挑戰</button>
+        <button class="mode-btn btn-countdown" onclick="startGame('countdown', currentDifficulty || 8)">⏳ 90 秒限時</button>
+        <button class="mode-btn btn-normal" onclick="startGame('normal', currentDifficulty || 8)">☕ 輕鬆模式</button>
     </div>
 
     <div id="game-screen">
@@ -389,17 +400,121 @@
         let timerInterval = null;
         let currentTime = 0;
         let gameMode = 'stopwatch';
+        let currentDifficulty = 8;
 
         function getLevelByScreenSize() {
             return window.innerWidth <= 768 ? mobileLevel : desktopLevel;
         }
 
-        function startGame(mode) {
+        function generateRandomLevel(difficulty = 8) {
+            const numColors = difficulty;
+            const numFilledTubes = numColors;
+            const numEmptyTubes = 2;
+            const totalTubes = numFilledTubes + numEmptyTubes;
+            const capacity = 4;
+            
+            const allColors = [];
+            for (let c = 1; c <= numColors; c++) {
+                for (let i = 0; i < capacity; i++) {
+                    allColors.push(c);
+                }
+            }
+            
+            for (let i = allColors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allColors[i], allColors[j]] = [allColors[j], allColors[i]];
+            }
+            
+            const tubes = [];
+            for (let i = 0; i < totalTubes; i++) {
+                if (i < numFilledTubes) {
+                    const tube = [];
+                    for (let j = 0; j < capacity; j++) {
+                        tube.push(allColors.pop());
+                    }
+                    tubes.push(tube);
+                } else {
+                    tubes.push([]);
+                }
+            }
+            
+            return tubes;
+        }
+
+        function shuffleLevel(level) {
+            const allColors = [];
+            level.forEach(tube => {
+                tube.forEach(color => {
+                    if (color !== null) allColors.push(color);
+                });
+            });
+            
+            for (let i = allColors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allColors[i], allColors[j]] = [allColors[j], allColors[i]];
+            }
+            
+            const colorCounts = {};
+            allColors.forEach(c => {
+                colorCounts[c] = (colorCounts[c] || 0) + 1;
+            });
+            
+            const numTubes = level.length;
+            const emptyTubes = level.filter(t => t.length === 0).length;
+            const filledTubes = numTubes - emptyTubes;
+            
+            const newLevel = [];
+            for (let i = 0; i < filledTubes; i++) {
+                const tube = [];
+                for (let j = 0; j < 4; j++) {
+                    if (allColors.length > 0) {
+                        tube.push(allColors.pop());
+                    }
+                }
+                newLevel.push(tube);
+            }
+            for (let i = 0; i < emptyTubes; i++) {
+                newLevel.push([]);
+            }
+            
+            return newLevel;
+        }
+        
+        function shuffleCurrentLevel() {
+            return shuffleLevel(tubes);
+        }
+
+        function startGame(mode, difficulty = 8) {
             SFX.click();
             gameMode = mode;
+            currentDifficulty = difficulty;
             document.getElementById('home-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'flex';
-            resetCurrentGame();
+            tubes = generateRandomLevel(difficulty);
+            selectedTubeIndex = null;
+            isGameOver = false;
+            isAnimating = false;
+            
+            const msgEl = document.getElementById('message');
+            msgEl.innerText = "";
+            msgEl.style.color = "#2ed573";
+            
+            clearInterval(timerInterval);
+            if (gameMode === 'countdown') {
+                currentTime = COUNTDOWN_SECONDS;
+            } else {
+                currentTime = 0;
+            }
+            
+            updateTimerDisplay();
+            
+            if (gameMode !== 'normal') {
+                timerInterval = setInterval(tickTimer, 1000);
+            } else {
+                document.getElementById('timer-display').innerText = "∞";
+            }
+            
+            renderBoard();
         }
 
         function backToHome() {
@@ -413,8 +528,11 @@
         function resetCurrentGame() {
             SFX.click();
             document.querySelectorAll('.confetti').forEach(e => e.remove()); 
-            const currentLevel = getLevelByScreenSize();
-            tubes = currentLevel.map(tube => [...tube]);
+            tubes = shuffleCurrentLevel();
+            
+            selectedTubeIndex = null;
+            isGameOver = false;
+            isAnimating = false;
             
             selectedTubeIndex = null;
             isGameOver = false;
