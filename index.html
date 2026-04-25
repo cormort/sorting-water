@@ -397,6 +397,1135 @@
             to   { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 24px rgba(11,232,129,0.7); }
         }
 
+        .color-hidden {
+            background: repeating-linear-gradient(45deg, #1a2035, #1a2035 8px, #1e2540 8px, #1e2540 16px);
+            position: relative;
+            border-radius: inherit;
+        }
+        .color-hidden::before { display: none; }
+        .color-hidden::after {
+            content: '?';
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 800;
+            color: rgba(255,255,255,0.2);
+        }
+            border-color: rgba(11,232,129,0.5);
+            cursor: default;
+            opacity: 0.8;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0) rotate(0); }
+            20% { transform: translateX(-5px) rotate(-2deg); }
+            40% { transform: translateX(5px) rotate(2deg); }
+            60% { transform: translateX(-4px) rotate(-1.5deg); }
+            80% { transform: translateX(4px) rotate(1.5deg); }
+        }
+        .tube.shake { animation: shake 0.35s ease; border-color: var(--danger); }
+
+        /* Liquids */
+        .liquid {
+            width: 100%;
+            height: 25%;
+            transition: background-color 0.3s;
+            position: relative;
+            border-radius: 3px;
+        }
+        /* Bottom rounding is applied via JS class .liquid-bottom to match tube curve exactly */
+        .liquid-bottom {
+            border-bottom-left-radius: 24px;
+            border-bottom-right-radius: 24px;
+        }
+        .liquid::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 2px; right: 2px; height: 2.5px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 50%;
+        }
+
+        /* Colors */
+        .color-1  { background: linear-gradient(180deg, #ff7b8a, #e8314a); }
+        .color-2  { background: linear-gradient(180deg, #7ab8ff, #1e7de8); }
+        .color-3  { background: linear-gradient(180deg, #7bf0a2, #28c95e); }
+        .color-4  { background: linear-gradient(180deg, #ffe07a, #ffaa00); }
+        .color-5  { background: linear-gradient(180deg, #c0c8d8, #6b7899); }
+        .color-6  { background: linear-gradient(180deg, #ff9f7a, #ff5733); }
+        .color-7  { background: linear-gradient(180deg, #34e8c4, #0da88a); }
+        .color-8  { background: linear-gradient(180deg, #b8a8ff, #7c5ce8); }
+        .color-9  { background: linear-gradient(180deg, #ff9fd6, #e0358a); }
+        .color-10 { background: linear-gradient(180deg, #fff3c0, #f0c830); }
+        .color-11 { background: linear-gradient(180deg, #88fcd8, #00cc8a); }
+        .color-12 { background: linear-gradient(180deg, #88ccff, #1080e0); }
+        .color-13 { background: linear-gradient(180deg, #e8eef4, #c0ccda); }
+        .color-14 { background: linear-gradient(180deg, #ffcab0, #e87855); }
+        .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }
+
+
+
+        /* ===== WIN OVERLAY ===== */
+        #win-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        #win-overlay.show { display: flex; }
+
+        .win-card {
+            background: linear-gradient(135deg, rgba(14,21,37,0.95), rgba(10,15,28,0.95));
+            border: 1px solid rgba(11,232,129,0.3);
+            border-radius: 24px;
+            padding: 40px 50px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(11,232,129,0.15), 0 30px 60px rgba(0,0,0,0.6);
+            max-width: 360px;
+            width: 90%;
+            animation: win-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes win-pop {
+            from { transform: scale(0.7); opacity: 0; }
+            to   { transform: scale(1); opacity: 1; }
+        }
+        .win-emoji { font-size: 3.5rem; margin-bottom: 8px; }
+        .win-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--success);
+            margin-bottom: 8px;
+        }
+        .win-subtitle { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 20px; }
+        .win-time { font-family: monospace; font-size: 1.8rem; color: var(--gold); font-weight: bold; margin-bottom: 24px; }
+        .win-btns { display: flex; gap: 10px; justify-content: center; }
+        .win-btn {
+            padding: 11px 22px;
+            border-radius: 10px;
+            border: none;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .win-btn-play {
+            background: linear-gradient(135deg, var(--success), #00a86b);
+            color: #000;
+        }
+        .win-btn-home {
+            background: var(--glass-b);
+            color: var(--text);
+            border: 1px solid var(--glass-b);
+        }
+        .win-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .win-btn:active { transform: translateY(0); }
+
+        /* ===== LOSE OVERLAY ===== */
+        #lose-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        #lose-overlay.show { display: flex; }
+        .lose-card {
+            background: linear-gradient(135deg, rgba(20,8,10,0.95), rgba(15,5,8,0.95));
+            border: 1px solid rgba(255,69,96,0.3);
+            border-radius: 24px;
+            padding: 40px 50px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(255,69,96,0.1), 0 30px 60px rgba(0,0,0,0.6);
+            max-width: 340px; width: 90%;
+            animation: win-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        .lose-title { font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 800; color: var(--danger); margin: 12px 0 8px; }
+        .lose-sub { color: var(--text-dim); font-size: 0.88rem; margin-bottom: 22px; }
+
+        /* Confetti */
+        .confetti {
+            position: fixed;
+            width: 9px; height: 12px;
+            animation: cf-fall linear forwards;
+            z-index: 999;
+            border-radius: 2px;
+            pointer-events: none;
+        }
+        @keyframes cf-fall {
+            0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(105vh) rotate(800deg); opacity: 0; }
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 600px) {
+            :root { --tube-w-d: 40px; --tube-h-d: 165px; }
+            #game-board { gap: 8px; }
+            .win-card, .lose-card { padding: 28px 24px; }
+            .win-title { font-size: 1.6rem; }
+            .stats-row { gap: 7px; }
+            .stat-chip { font-size: 0.88rem; padding: 4px 11px; }
+            .top-bar { margin-bottom: 6px; }
+            .action-btn { padding: 5px 9px; font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <button id="mute-btn" onclick="toggleMute()">🔊 音效</button>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen">
+        <div class="home-logo">水瓶分類</div>
+        <div class="home-sub">Color Sort · Blind Mode</div>
+
+        <div class="home-section-label">難度</div>
+        <div class="diff-row">
+            <div class="diff-pill active" onclick="selectDiff(this,6)">
+                <span class="diff-icon">🌱</span>
+                <span class="diff-label">簡單<br>6色</span>
+            </div>
+            <div class="diff-pill" onclick="selectDiff(this,8)">
+                <span class="diff-icon">🔥</span>
+                <span class="diff-label">中等<br>8色</span>
+            </div>
+            <div class="diff-pill" onclick="selectDiff(this,10)">
+                <span class="diff-icon">💀</span>
+                <span class="diff-label">困難<br>10色</span>
+            </div>
+            <div class="diff-pill" onclick="selectDiff(this,12)">
+                <span class="diff-icon">👹</span>
+                <span class="diff-label">地獄<br>12色</span>
+            </div>
+        </div>
+
+        <div class="home-section-label">模式</div>
+        <div class="mode-grid">
+            <button class="mode-btn btn-stopwatch" onclick="startGame('stopwatch')">
+                <span>⏱</span>
+                <span><span class="mode-title">計時挑戰</span><span class="mode-desc">看看你要多久才能完成</span></span>
+            </button>
+            <button class="mode-btn btn-countdown" onclick="startGame('countdown')">
+                <span>⏳</span>
+                <span><span class="mode-title">90 秒限時</span><span class="mode-desc">時間不等人，全力衝！</span></span>
+            </button>
+            <button class="mode-btn btn-normal" onclick="startGame('normal')">
+                <span>☕</span>
+                <span><span class="mode-title">輕鬆模式</span><span class="mode-desc">無時間限制，慢慢解</span></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen">
+        <div class="top-bar">
+            <span class="logo-small">Color Sort PRO</span>
+            <div class="top-actions">
+                <button class="action-btn" id="undo-btn" onclick="undoMove()" disabled>↩ 撤銷</button>
+                <button class="action-btn" id="hint-btn" onclick="showHint()">💡 提示</button>
+                <button class="action-btn" onclick="resetCurrentGame()">🔄 重置</button>
+                <button class="action-btn" onclick="backToHome()">🏠</button>
+            </div>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-chip" id="timer-display">00:00</div>
+            <div class="stat-chip" id="moves-display">0 步</div>
+        </div>
+
+        <div class="progress-wrap">
+            <div class="progress-label">
+                <span>完成進度</span>
+                <span id="progress-text">0 / 0</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+        </div>
+
+        <div id="message"></div>
+        <div id="game-board"></div>
+    </div>
+
+    <!-- WIN OVERLAY -->
+    <div id="win-overlay">
+        <div class="win-card">
+            <div class="win-emoji">🎉</div>
+            <div class="win-title">過 關！</div>
+            <div class="win-subtitle" id="win-subtitle">漂亮地完成了所有分類</div>
+            <div class="win-time" id="win-stats"></div>
+            <div class="win-btns">
+                <button class="win-btn win-btn-play" onclick="nextGame()">下一關 ›</button>
+                <button class="win-btn win-btn-home" onclick="backToHome()">主選單</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOSE OVERLAY -->
+    <div id="lose-overlay">
+        <div class="lose-card">
+            <div class="win-emoji">💀</div>
+            <div class="lose-title">時間到！</div>
+            <div class="lose-sub">差一點就完成了，再試一次？</div>
+            <div class="win-btns">
+                <button class="win-btn win-btn-play" onclick="resetCurrentGame(); closeLose()">再試一次</button>
+                <button class="win-btn win-btn-home" onclick="backToHome()">主選單</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    // AUDIO ENGINE
+    // ============================================================
+    let audioCtx = null;
+    let isMuted = false;
+
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        const btn = document.getElementById('mute-btn');
+        btn.textContent = isMuted ? '🔇 靜音' : '🔊 音效';
+        btn.style.color = isMuted ? 'var(--danger)' : '';
+        if (!isMuted) initAudio();
+    }
+
+    function playTone(freq, type, dur, vol = 0.04) {
+        if (isMuted || !audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + dur);
+    }
+
+    const SFX = {
+        click:  () => playTone(700, 'sine', 0.08, 0.04),
+        select: () => playTone(900, 'sine', 0.12, 0.04),
+        deselect: () => playTone(500, 'sine', 0.08, 0.03),
+        error:  () => { playTone(140, 'sawtooth', 0.1, 0.06); playTone(110, 'sawtooth', 0.15, 0.05); },
+        pour:   () => { for (let i=0;i<5;i++) setTimeout(()=>playTone(280+i*70,'sine',0.18,0.04), i*90); },
+        complete: () => { [392,494,587].forEach((f,i)=>setTimeout(()=>playTone(f,'sine',0.5,0.07),i*120)); },
+        win:    () => {
+            const melody = [261.63,329.63,392,523.25,659.25,784];
+            melody.forEach((f,i)=>setTimeout(()=>playTone(f,'sine',0.5,0.09),i*130));
+        },
+        tick:   () => playTone(440, 'square', 0.05, 0.02),
+    };
+
+    document.body.addEventListener('click', () => { if(!isMuted) initAudio(); }, { once: true });
+
+    // ============================================================
+    // GAME STATE
+    // ============================================================
+    const TUBE_CAPACITY = 4;
+    const COUNTDOWN_SECONDS = 90;
+
+    let tubes = [];
+    let tubesSnapshot = []; // for undo
+    let moveHistory = [];   // stack of tube states for undo
+    let selectedTubeIndex = null;
+    let isGameOver = false;
+    let isAnimating = false;
+    let timerInterval = null;
+    let currentTime = 0;
+    let gameMode = 'stopwatch';
+    let currentDifficulty = 6;
+    let moveCount = 0;
+    let hintTimeout = null;
+    let hintActive = false;
+
+    // ============================================================
+    // DIFFICULTY SELECTION
+    // ============================================================
+    function selectDiff(el, diff) {
+        document.querySelectorAll('.diff-pill').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+        currentDifficulty = diff;
+        SFX.click();
+    }
+
+    // ============================================================
+    // LEVEL GENERATION
+    // ============================================================
+    function generateRandomLevel(difficulty) {
+        const numColors = difficulty;
+        const numEmpty = difficulty <= 6 ? 2 : difficulty <= 10 ? 2 : 3;
+
+        // Build a flat pool of all color pieces (4 of each color)
+        const pool = [];
+        for (let c = 1; c <= numColors; c++) {
+            for (let k = 0; k < TUBE_CAPACITY; k++) pool.push(c);
+        }
+
+        // Fisher-Yates shuffle
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+
+        // Distribute into tubes (filled first, then empty)
+        const state = [];
+        for (let t = 0; t < numColors; t++) {
+            state.push(pool.splice(0, TUBE_CAPACITY));
+        }
+        for (let t = 0; t < numEmpty; t++) {
+            state.push([]);
+        }
+
+        return state;
+    }
+
+    function getValidMoves(state) {
+        const moves = [];
+        for (let from = 0; from < state.length; from++) {
+            if (state[from].length === 0) continue;
+            const top = state[from][state[from].length - 1];
+            for (let to = 0; to < state.length; to++) {
+                if (from === to || state[to].length >= TUBE_CAPACITY) continue;
+                const topTo = state[to].length > 0 ? state[to][state[to].length - 1] : null;
+                if (topTo === null || topTo === top) moves.push([from, to]);
+            }
+        }
+        return moves;
+    }
+
+    function applyMove(state, from, to) {
+        const s = state.map(t => [...t]);
+        s[to].push(s[from].pop());
+        return s;
+    }
+
+    function deepClone(state) { return state.map(t => [...t]); }
+
+    // ============================================================
+    // GAME LIFECYCLE
+    // ============================================================
+    function startGame(mode) {
+        SFX.click();
+        gameMode = mode;
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'flex';
+        document.getElementById('win-overlay').classList.remove('show');
+        document.getElementById('lose-overlay').classList.remove('show');
+
+        tubes = generateRandomLevel(currentDifficulty);
+        tubesSnapshot = deepClone(tubes);
+        moveHistory = [];
+        selectedTubeIndex = null;
+        isGameOver = false;
+        isAnimating = false;
+        moveCount = 0;
+        hintActive = false;
+
+        clearHintHighlights();
+        document.getElementById('message').textContent = '';
+        document.getElementById('message').style.color = '';
+        updateMovesDisplay();
+
+        clearInterval(timerInterval);
+        currentTime = gameMode === 'countdown' ? COUNTDOWN_SECONDS : 0;
+        updateTimerDisplay();
+
+        if (gameMode !== 'normal') {
+            timerInterval = setInterval(tickTimer, 1000);
+        } else {
+            document.getElementById('timer-display').textContent = '∞';
+        }
+
+        document.getElementById('undo-btn').disabled = true;
+        renderBoard();
+        updateProgress();
+    }
+
+    function nextGame() {
+        document.getElementById('win-overlay').classList.remove('show');
+        document.querySelectorAll('.confetti').forEach(e => e.remove());
+        startGame(gameMode);
+    }
+
+    function backToHome() {
+        SFX.click();
+        clearInterval(timerInterval);
+        document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('home-screen').style.display = 'flex';
+        document.getElementById('win-overlay').classList.remove('show');
+        document.getElementById('lose-overlay').classList.remove('show');
+        document.querySelectorAll('.confetti').forEach(e => e.remove());
+    }
+
+    function resetCurrentGame() {
+        SFX.click();
+        document.querySelectorAll('.confetti').forEach(e => e.remove());
+        document.getElementById('win-overlay').classList.remove('show');
+        document.getElementById('lose-overlay').classList.remove('show');
+
+        tubes = deepClone(tubesSnapshot);
+        moveHistory = [];
+        selectedTubeIndex = null;
+        isGameOver = false;
+        isAnimating = false;
+        moveCount = 0;
+        hintActive = false;
+        clearHintHighlights();
+
+        document.getElementById('message').textContent = '';
+        document.getElementById('undo-btn').disabled = true;
+        updateMovesDisplay();
+
+        clearInterval(timerInterval);
+        currentTime = gameMode === 'countdown' ? COUNTDOWN_SECONDS : 0;
+        updateTimerDisplay();
+        if (gameMode !== 'normal') timerInterval = setInterval(tickTimer, 1000);
+        else document.getElementById('timer-display').textContent = '∞';
+
+        renderBoard();
+        updateProgress();
+    }
+
+    function closeLose() {
+        document.getElementById('lose-overlay').classList.remove('show');
+    }
+
+    // ============================================================
+    // TIMER
+    // ============================================================
+    function tickTimer() {
+        if (isGameOver) return;
+        if (gameMode === 'countdown') {
+            currentTime--;
+            if (currentTime <= 10 && currentTime > 0) SFX.tick();
+            if (currentTime <= 0) {
+                currentTime = 0;
+                isGameOver = true;
+                clearInterval(timerInterval);
+                updateTimerDisplay();
+                document.getElementById('lose-overlay').classList.add('show');
+                SFX.error();
+                return;
+            }
+        } else {
+            currentTime++;
+        }
+        updateTimerDisplay();
+        // Highlight timer red when < 15s
+        const el = document.getElementById('timer-display');
+        if (gameMode === 'countdown' && currentTime <= 15) {
+            el.classList.add('danger');
+        } else {
+            el.classList.remove('danger');
+        }
+    }
+
+    function updateTimerDisplay() {
+        if (gameMode === 'normal') return;
+        const m = Math.floor(currentTime / 60).toString().padStart(2, '0');
+        const s = (currentTime % 60).toString().padStart(2, '0');
+        document.getElementById('timer-display').textContent = `${m}:${s}`;
+    }
+
+    function updateMovesDisplay() {
+        document.getElementById('moves-display').textContent = `${moveCount} 步`;
+    }
+
+    // ============================================================
+    // PROGRESS
+    // ============================================================
+    function countCompleted() {
+        return tubes.filter(t => t.length === TUBE_CAPACITY && t.every(c => c === t[0])).length;
+    }
+
+    function updateProgress() {
+        const filled = tubes.filter(t => t.length > 0).length; // non-empty tubes
+        const completed = countCompleted();
+        const total = tubes.filter(t => t.length > 0 || t.length === 0).length;
+        // total non-empty original = difficulty
+        const target = currentDifficulty;
+        const pct = target > 0 ? (completed / target * 100) : 0;
+
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-text').textContent = `${completed} / ${target}`;
+    }
+
+    // ============================================================
+    // RENDER
+    // ============================================================
+    function renderBoard() {
+        const board = document.getElementById('game-board');
+        board.innerHTML = '';
+
+        tubes.forEach((tubeContent, index) => {
+            const tubeDiv = document.createElement('div');
+            tubeDiv.classList.add('tube');
+            tubeDiv.id = `tube-${index}`;
+
+            // Cap
+            const cap = document.createElement('div');
+            cap.classList.add('tube-cap');
+            tubeDiv.appendChild(cap);
+
+            if (selectedTubeIndex === index) tubeDiv.classList.add('selected');
+
+            // Check if complete
+            const isComplete = tubeContent.length === TUBE_CAPACITY && tubeContent.every(c => c === tubeContent[0]);
+            if (isComplete) tubeDiv.classList.add('complete');
+
+            tubeDiv.onclick = () => handleTubeClick(index);
+
+            // Original blind mode: top consecutive same-color layers are visible,
+            // everything below the first color change is hidden
+            const topColor = tubeContent.length > 0 ? tubeContent[tubeContent.length - 1] : null;
+            let hideFromIndex = -1;
+            for (let i = tubeContent.length - 1; i >= 0; i--) {
+                if (tubeContent[i] !== topColor) { hideFromIndex = i; break; }
+            }
+
+            tubeContent.forEach((color, i) => {
+                const liq = document.createElement('div');
+                liq.classList.add('liquid');
+                if (i === 0) liq.classList.add('liquid-bottom');
+                if (i <= hideFromIndex) {
+                    liq.classList.add('color-hidden');
+                } else {
+                    liq.classList.add(`color-${color}`);
+                }
+                tubeDiv.appendChild(liq);
+            });
+
+            board.appendChild(tubeDiv);
+        });
+    }
+
+    // ============================================================
+    // HINT SYSTEM
+    // ============================================================
+    function showHint() {
+        SFX.click();
+        clearHintHighlights();
+
+        if (hintActive) { hintActive = false; return; }
+
+        const moves = getValidMoves(tubes);
+        // Find best move: prefer filling a tube with matching color
+        let best = null;
+        for (const [from, to] of moves) {
+            const topFrom = tubes[from][tubes[from].length - 1];
+            if (tubes[to].length > 0 && tubes[to][tubes[to].length - 1] === topFrom) {
+                best = [from, to]; break;
+            }
+        }
+        if (!best && moves.length > 0) best = moves[0];
+        if (!best) {
+            document.getElementById('message').textContent = '😵 沒有可用移動，試試撤銷！';
+            return;
+        }
+
+        const [from, to] = best;
+        document.getElementById(`tube-${from}`).classList.add('hint-source');
+        document.getElementById(`tube-${to}`).classList.add('hint-target');
+        hintActive = true;
+
+        clearTimeout(hintTimeout);
+        hintTimeout = setTimeout(() => {
+            clearHintHighlights();
+            hintActive = false;
+        }, 2500);
+    }
+
+    function clearHintHighlights() {
+        document.querySelectorAll('.hint-source, .hint-target').forEach(el => {
+            el.classList.remove('hint-source', 'hint-target');
+        });
+    }
+
+    // ============================================================
+    // UNDO
+    // ============================================================
+    function undoMove() {
+        if (moveHistory.length === 0 || isGameOver) return;
+        SFX.deselect();
+        tubes = moveHistory.pop();
+        selectedTubeIndex = null;
+        moveCount = Math.max(0, moveCount - 1);
+        clearHintHighlights();
+        hintActive = false;
+        updateMovesDisplay();
+        renderBoard();
+        updateProgress();
+        document.getElementById('undo-btn').disabled = moveHistory.length === 0;
+        document.getElementById('message').textContent = '';
+    }
+
+    // ============================================================
+    // GAME LOGIC
+    // ============================================================
+    function canPour(sourceIdx, targetIdx) {
+        const src = tubes[sourceIdx];
+        const tgt = tubes[targetIdx];
+        if (src.length === 0 || tgt.length >= TUBE_CAPACITY) return false;
+        const topSrc = src[src.length - 1];
+        const topTgt = tgt.length > 0 ? tgt[tgt.length - 1] : null;
+        return (topTgt === null || topTgt === topSrc);
+    }
+
+    function executePour(sourceIdx, targetIdx) {
+        const src = tubes[sourceIdx];
+        const tgt = tubes[targetIdx];
+        const topColor = src[src.length - 1];
+        const space = TUBE_CAPACITY - tgt.length;
+        let count = 0;
+        for (let i = src.length - 1; i >= 0; i--) {
+            if (src[i] === topColor && count < space) count++;
+            else break;
+        }
+        for (let i = 0; i < count; i++) tgt.push(src.pop());
+    }
+
+    function handleTubeClick(index) {
+        if (isGameOver || isAnimating) return;
+
+        clearHintHighlights();
+        hintActive = false;
+
+        if (selectedTubeIndex === null) {
+            if (tubes[index].length > 0) {
+                // Don't select a complete tube
+                const t = tubes[index];
+                if (t.length === TUBE_CAPACITY && t.every(c => c === t[0])) return;
+                SFX.select();
+                selectedTubeIndex = index;
+                renderBoard();
+            } else {
+                triggerShake(index);
+            }
+        } else if (selectedTubeIndex === index) {
+            SFX.deselect();
+            selectedTubeIndex = null;
+            renderBoard();
+        } else {
+            if (canPour(selectedTubeIndex, index)) {
+                isAnimating = true;
+                // Save state for undo
+                moveHistory.push(deepClone(tubes));
+                document.getElementById('undo-btn').disabled = false;
+                moveCount++;
+                updateMovesDisplay();
+                SFX.pour();
+
+                animatePour(selectedTubeIndex, index, () => {
+                    executePour(selectedTubeIndex, index);
+                    selectedTubeIndex = null;
+                    isAnimating = false;
+                    renderBoard();
+                    updateProgress();
+                    checkWinCondition();
+                });
+            } else {
+                triggerShake(index);
+            }
+        }
+    }
+
+    function animatePour(sourceIdx, targetIdx, callback) {
+        const srcEl = document.getElementById(`tube-${sourceIdx}`);
+        const tgtEl = document.getElementById(`tube-${targetIdx}`);
+
+        const sRect = srcEl.getBoundingClientRect();
+        const tRect = tgtEl.getBoundingClientRect();
+
+        const dx = tRect.left - sRect.left;
+        const dy = tRect.top - sRect.top - 25;
+        const rotateDeg = dx >= 0 ? 72 : -72;
+        const offsetX = dx >= 0 ? -sRect.width / 2 : sRect.width / 2;
+
+        srcEl.style.zIndex = '200';
+        srcEl.style.transformOrigin = 'top center';
+        srcEl.style.transition = 'transform 0.38s cubic-bezier(0.4,0,0.2,1)';
+        srcEl.style.transform = `translate(${dx + offsetX}px, ${dy}px) rotate(${rotateDeg}deg)`;
+
+        setTimeout(callback, 400);
+    }
+
+    function triggerShake(index) {
+        SFX.error();
+        const el = document.getElementById(`tube-${index}`);
+        if (!el) return;
+        el.classList.add('shake');
+        setTimeout(() => el.classList.remove('shake'), 350);
+    }
+
+    // ============================================================
+    // WIN CHECK
+    // ============================================================
+    function checkWinCondition() {
+        const won = tubes.every(tube => {
+            if (tube.length === 0) return true;
+            if (tube.length !== TUBE_CAPACITY) return false;
+            return tube.every(c => c === tube[0]);
+        });
+
+        if (won) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+
+            // Check if a tube was just completed (for SFX)
+            const numDone = countCompleted();
+            if (numDone === currentDifficulty) {
+                SFX.win();
+            } else {
+                SFX.complete();
+            }
+
+            setTimeout(() => {
+                const overlay = document.getElementById('win-overlay');
+                const statsEl = document.getElementById('win-stats');
+                const subEl = document.getElementById('win-subtitle');
+
+                if (gameMode === 'stopwatch') {
+                    const m = Math.floor(currentTime/60).toString().padStart(2,'0');
+                    const s = (currentTime%60).toString().padStart(2,'0');
+                    statsEl.textContent = `${m}:${s}  ·  ${moveCount} 步`;
+                    subEl.textContent = '完美地完成了所有分類！';
+                } else if (gameMode === 'countdown') {
+                    const m = Math.floor(currentTime/60).toString().padStart(2,'0');
+                    const s = (currentTime%60).toString().padStart(2,'0');
+                    statsEl.textContent = `剩餘 ${m}:${s}  ·  ${moveCount} 步`;
+                    subEl.textContent = '在時限內完成，太厲害了！';
+                } else {
+                    statsEl.textContent = `${moveCount} 步完成`;
+                    subEl.textContent = '悠閒地完成了所有分類';
+                }
+
+                overlay.classList.add('show');
+                triggerWinAnimation();
+            }, 300);
+        }
+    }
+
+    function triggerWinAnimation() {
+        const colors = ['#4f8ef7','#c471ed','#0be881','#f7c948','#ff4560','#fff'];
+        for (let i = 0; i < 70; i++) {
+            setTimeout(() => {
+                const c = document.createElement('div');
+                c.classList.add('confetti');
+                c.style.left = Math.random() * 100 + 'vw';
+                c.style.top = '-15px';
+                c.style.background = colors[Math.floor(Math.random() * colors.length)];
+                c.style.width = (6 + Math.random() * 8) + 'px';
+                c.style.height = (8 + Math.random() * 10) + 'px';
+                c.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+                c.style.animationDelay = '0s';
+                c.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                document.body.appendChild(c);
+                setTimeout(() => c.remove(), 4000);
+            }, i * 40);
+        }
+    }
+    </script>
+</body>
+</html>
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            align-self: flex-start;
+        }
+
+        /* Difficulty pills */
+        .diff-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            margin-bottom: 22px;
+        }
+        .diff-pill {
+            flex: 1;
+            padding: 10px 6px;
+            border-radius: 10px;
+            border: 1.5px solid var(--glass-b);
+            background: var(--glass);
+            color: var(--text-dim);
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            backdrop-filter: blur(8px);
+        }
+        .diff-pill:hover { border-color: var(--accent); color: var(--text); }
+        .diff-pill.active {
+            background: linear-gradient(135deg, rgba(79,142,247,0.25), rgba(196,113,237,0.2));
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 14px rgba(79,142,247,0.3);
+        }
+        .diff-pill .diff-icon { display: block; font-size: 1.2rem; margin-bottom: 3px; }
+        .diff-pill .diff-label { display: block; font-size: 0.7rem; color: inherit; }
+
+        /* Mode buttons */
+        .mode-grid { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-bottom: 28px; }
+
+        .mode-btn {
+            width: 100%;
+            padding: 13px 18px;
+            border-radius: 12px;
+            border: 1.5px solid transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+            overflow: hidden;
+        }
+        .mode-btn::after {
+            content: '›';
+            position: absolute; right: 16px;
+            font-size: 1.4rem; opacity: 0.5;
+            transition: transform 0.2s;
+        }
+        .mode-btn:hover::after { transform: translateX(4px); opacity: 1; }
+        .mode-btn:active { transform: scale(0.98); }
+
+        .mode-btn .mode-desc {
+            font-size: 0.72rem;
+            font-weight: 400;
+            opacity: 0.7;
+            display: block;
+            margin-top: 1px;
+        }
+        .mode-btn .mode-title { font-size: 0.95rem; }
+
+        .btn-stopwatch {
+            background: linear-gradient(135deg, #1a2a4a, #1e3052);
+            border-color: rgba(79,142,247,0.4);
+            color: #7eb8ff;
+        }
+        .btn-stopwatch:hover { background: linear-gradient(135deg, #1e3052, #233860); border-color: var(--accent); box-shadow: 0 0 20px rgba(79,142,247,0.2); }
+
+        .btn-countdown {
+            background: linear-gradient(135deg, #2a1a1a, #381a1a);
+            border-color: rgba(255,69,96,0.4);
+            color: #ff7f93;
+        }
+        .btn-countdown:hover { background: linear-gradient(135deg, #381a1a, #4a1e1e); border-color: var(--danger); box-shadow: 0 0 20px rgba(255,69,96,0.2); }
+
+        .btn-normal {
+            background: linear-gradient(135deg, #0f2a1e, #0e2f1f);
+            border-color: rgba(11,232,129,0.35);
+            color: #6fffc4;
+        }
+        .btn-normal:hover { background: linear-gradient(135deg, #0e2f1f, #103825); border-color: var(--success); box-shadow: 0 0 20px rgba(11,232,129,0.15); }
+
+        /* ===== GAME SCREEN ===== */
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            min-height: 100vh;
+            padding: 12px 10px;
+            justify-content: center;
+        }
+
+        /* Top bar */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 860px;
+            margin-bottom: 10px;
+            padding: 0 4px;
+        }
+
+        .logo-small {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .top-actions { display: flex; gap: 7px; }
+        .action-btn {
+            background: var(--glass);
+            color: var(--text-dim);
+            border: 1px solid var(--glass-b);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(8px);
+            display: flex; align-items: center; gap: 5px;
+        }
+        .action-btn:hover { background: var(--glass-b); color: var(--text); transform: translateY(-1px); }
+        .action-btn:active { transform: translateY(0); }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+        /* Stats row */
+        .stats-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .stat-chip {
+            background: var(--glass);
+            border: 1px solid var(--glass-b);
+            border-radius: 8px;
+            padding: 5px 14px;
+            font-family: monospace;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--gold);
+            backdrop-filter: blur(8px);
+            min-width: 70px;
+            text-align: center;
+        }
+        .stat-chip.danger { color: var(--danger); border-color: rgba(255,69,96,0.3); }
+        .stat-chip.success { color: var(--success); border-color: rgba(11,232,129,0.3); }
+
+        /* Progress bar */
+        .progress-wrap {
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 8px;
+        }
+        .progress-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .progress-bar {
+            height: 4px;
+            background: var(--glass-b);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 99px;
+            transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 0 0 8px rgba(79,142,247,0.5);
+        }
+
+        /* Message */
+        #message {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            text-align: center;
+            letter-spacing: 0.5px;
+            min-height: 24px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+        }
+
+        /* Game Board */
+        #game-board {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 860px;
+            gap: 14px;
+            padding: 8px;
+        }
+
+        /* ===== TUBES ===== */
+        .tube {
+            width: var(--tube-w-d);
+            height: var(--tube-h-d);
+            background: rgba(255,255,255,0.02);
+            border: 2.5px solid rgba(255,255,255,0.15);
+            border-top: none;
+            display: flex;
+            flex-direction: column-reverse;
+            cursor: pointer;
+            border-radius: 0 0 28px 28px;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.4);
+            padding: 2px;
+            position: relative;
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s, border-color 0.2s;
+            z-index: 1;
+        }
+
+        /* Glass shine on tube */
+        .tube::after {
+            content: '';
+            position: absolute;
+            top: 3%; left: 8%; width: 22%; height: 92%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 60%);
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Tube cap (top rim) */
+        .tube-cap {
+            position: absolute;
+            top: -10px; left: -3px; right: -3px;
+            height: 10px;
+            border-radius: 4px 4px 0 0;
+            border: 2.5px solid rgba(255,255,255,0.15);
+            border-bottom: none;
+            background: rgba(255,255,255,0.04);
+            z-index: 5;
+        }
+
+        .tube.selected {
+            border-color: rgba(255,255,255,0.7);
+            transform: translateY(-22px) scale(1.04);
+            z-index: 50;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.4),
+                        0 20px 40px rgba(0,0,0,0.5),
+                        0 0 0 2px rgba(255,255,255,0.3),
+                        0 0 25px rgba(255,255,255,0.1);
+        }
+
+        .tube.hint-source {
+            border-color: var(--gold);
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 18px rgba(247,201,72,0.5);
+            animation: pulse-gold 1s infinite alternate;
+        }
+        .tube.hint-target {
+            border-color: var(--success);
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 18px rgba(11,232,129,0.4);
+            animation: pulse-green 1s infinite alternate;
+        }
+
+        @keyframes pulse-gold {
+            from { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 12px rgba(247,201,72,0.4); }
+            to   { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 28px rgba(247,201,72,0.8); }
+        }
+        @keyframes pulse-green {
+            from { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 10px rgba(11,232,129,0.3); }
+            to   { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 24px rgba(11,232,129,0.7); }
+        }
+
         .tube.complete {
             border-color: rgba(11,232,129,0.5);
             cursor: default;
