@@ -136,7 +136,10 @@
         @keyframes shake { 0%,100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-5px) rotate(-2deg); } 40% { transform: translateX(5px) rotate(2deg); } 60% { transform: translateX(-4px) rotate(-1.5deg); } 80% { transform: translateX(4px) rotate(1.5deg); } }
 
         .liquid { width: 100%; height: 25%; transition: background-color 0.3s; position: relative; border-radius: 3px; }
-        .liquid:last-child { border-bottom-left-radius: 29px; border-bottom-right-radius: 29px; }
+        
+        /* 修正點 1：因為 flex-direction: column-reverse，DOM 中的第 2 個子元素 (在 tube-cap 之後) 才是視覺上的最底部！ */
+        .liquid:nth-child(2) { border-bottom-left-radius: 29px; border-bottom-right-radius: 29px; }
+        
         .liquid::before { content: ''; position: absolute; top: 0; left: 2px; right: 2px; height: 2.5px; background: rgba(255,255,255,0.35); border-radius: 50%; }
 
         .color-1 { background: linear-gradient(180deg, #ff7b8a, #e8314a); }
@@ -155,9 +158,10 @@
         .color-14 { background: linear-gradient(180deg, #ffcab0, #e87855); }
         .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }
 
-        .color-hidden { background: repeating-linear-gradient(45deg, #1a2035, #1a2035 8px, #1e2540 8px, #1e2540 16px); position: relative; }
+        /* 修正點 2：強化隱藏模式下的顯示，確保問號更加清晰且美觀 */
+        .color-hidden { background: #1e2540; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .color-hidden::before { display: none; }
-        .color-hidden::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800; color: rgba(255,255,255,0.2); }
+        .color-hidden::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; color: rgba(255,255,255,0.4); }
 
         #win-overlay, #lose-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(12px); z-index: 500; align-items: center; justify-content: center; }
         #win-overlay.show, #lose-overlay.show { display: flex; }
@@ -271,7 +275,6 @@
 <script>
 (function() {
     const TUBE_CAPACITY = 4, COUNTDOWN_SECONDS = 90, LS_KEYS = { mute: 'sw_muted', diff: 'sw_diff', best: 'sw_best' };
-
     let tubes = [], tubesSnapshot = [], moveHistory = [], selectedTubeIndex = null,
         isGameOver = false, isAnimating = false, timerInterval = null, currentTime = 0,
         gameMode = 'stopwatch', currentDifficulty = 6, moveCount = 0, hintTimeout = null, hintActive = false,
@@ -379,6 +382,7 @@
 
             tubeDiv.addEventListener('click', () => handleTubeClick(index));
 
+            // 判斷頂部色塊邏輯，隱藏下方的其他顏色
             const topColor = tubeContent.length > 0 ? tubeContent[tubeContent.length - 1] : null;
             let hideFromIndex = -1;
             for (let i = tubeContent.length - 1; i >= 0; i--) {
