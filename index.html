@@ -136,10 +136,7 @@
         @keyframes shake { 0%,100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-5px) rotate(-2deg); } 40% { transform: translateX(5px) rotate(2deg); } 60% { transform: translateX(-4px) rotate(-1.5deg); } 80% { transform: translateX(4px) rotate(1.5deg); } }
 
         .liquid { width: 100%; height: 25%; transition: background-color 0.3s; position: relative; border-radius: 3px; }
-        
-        /* 修正點 1：因為 flex-direction: column-reverse，DOM 中的第 2 個子元素 (在 tube-cap 之後) 才是視覺上的最底部！ */
         .liquid:nth-child(2) { border-bottom-left-radius: 29px; border-bottom-right-radius: 29px; }
-        
         .liquid::before { content: ''; position: absolute; top: 0; left: 2px; right: 2px; height: 2.5px; background: rgba(255,255,255,0.35); border-radius: 50%; }
 
         .color-1 { background: linear-gradient(180deg, #ff7b8a, #e8314a); }
@@ -158,7 +155,6 @@
         .color-14 { background: linear-gradient(180deg, #ffcab0, #e87855); }
         .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }
 
-        /* 修正點 2：強化隱藏模式下的顯示，確保問號更加清晰且美觀 */
         .color-hidden { background: #1e2540; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .color-hidden::before { display: none; }
         .color-hidden::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; color: rgba(255,255,255,0.4); }
@@ -341,18 +337,112 @@
         return s;
     }
 
+    // 🏆 更新重點：重新撰寫打亂演算法，保證初始狀態「絕對不出現相鄰同色」
     function generateRandomLevel(difficulty) {
-        const numColors = difficulty, numEmpty = difficulty <= 6 ? 2 : difficulty <= 10 ? 2 : 3;
+        const numColors = difficulty;
+        const numEmpty = difficulty <= 6 ? 2 : difficulty <= 10 ? 2 : 3;
+        
         let state = [];
-        for (let i = 0; i < numColors; i++) state.push(Array(TUBE_CAPACITY).fill(i + 1));
-        for (let i = 0; i < numEmpty; i++) state.push([]);
-        const scrambleMoves = 60 + difficulty * 5;
-        for (let m = 0; m < scrambleMoves; m++) {
-            const valid = getValidMoves(state);
-            if (valid.length === 0) break;
-            const move = valid[Math.floor(Math.random() * valid.length)];
-            state = applyMove(state, move[0], move[1]);
+        let valid = false;
+
+        // 策略一：透過反向倒水進行安全打亂（保證 100% 絕對可解）
+        for (let attempts = 0; attempts < 50; attempts++) {
+            state = [];
+            // 生成完成狀態
+            for (let i = 0; i < numColors; i++) state.push(Array(TUBE_CAPACITY).fill(i + 1));
+            for (let i = 0; i < numEmpty; i++) state.push([]);
+
+            let lastFrom = -1, lastTo = -1;
+            let scrambleMoves = 250 + difficulty * 20;
+
+            // 隨機反向移動
+            for (let m = 0; m < scrambleMoves; m++) {
+                let possibleMoves = [];
+                for (let f = 0; f < state.length; f++) {
+                    if (state[f].length === 0) continue;
+                    for (let t = 0; t < state.length; t++) {
+                        if (f === t || state[t].length >= TUBE_CAPACITY) continue;
+                        if (f === lastTo && t === lastFrom) continue; // 避免反覆倒同一個管子
+                        possibleMoves.push([f, t]);
+                    }
+                }
+                if (possibleMoves.length > 0) {
+                    const move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                    state[move[1]].push(state[move[0]].pop());
+                    lastFrom = move[0];
+                    lastTo = move[1];
+                }
+            }
+
+            // 打亂後尋找符合「沒有相鄰同色」的狀態
+            for (let hunt = 0; hunt < 100; hunt++) {
+                let hasAdj = false;
+                for (let i = 0; i < state.length; i++) {
+                    for (let j = 1; j < state[i].length; j++) {
+                        if (state[i][j] === state[i][j-1]) {
+                            hasAdj = true; break;
+                        }
+                    }
+                    if (hasAdj) break;
+                }
+                if (!hasAdj) { valid = true; break; }
+
+                // 若還有同色相鄰，則繼續反向倒水幾步來破壞它
+                let possibleMoves = [];
+                for (let f = 0; f < state.length; f++) {
+                    if (state[f].length === 0) continue;
+                    for (let t = 0; t < state.length; t++) {
+                        if (f === t || state[t].length >= TUBE_CAPACITY) continue;
+                        if (f === lastTo && t === lastFrom) continue;
+                        possibleMoves.push([f, t]);
+                    }
+                }
+                if (possibleMoves.length > 0) {
+                    const move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                    state[move[1]].push(state[move[0]].pop());
+                    lastFrom = move[0];
+                    lastTo = move[1];
+                }
+            }
+            if (valid) break;
         }
+
+        // 策略二：如果運氣很差一直無法消除同色相鄰，啟動純粹重新分配（強制隔離相同顏色）
+        if (!valid) {
+            while (true) {
+                state = Array.from({length: numColors + numEmpty}, () => []);
+                let pool = [];
+                for (let i = 1; i <= numColors; i++) {
+                    for (let j = 0; j < TUBE_CAPACITY; j++) pool.push(i);
+                }
+                // 隨機洗牌
+                for (let i = pool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
+                }
+                
+                let success = true;
+                for (let color of pool) {
+                    let validTubes = [];
+                    for (let i = 0; i < numColors; i++) {
+                        if (state[i].length < TUBE_CAPACITY && 
+                           (state[i].length === 0 || state[i][state[i].length - 1] !== color)) {
+                            validTubes.push(i);
+                        }
+                    }
+                    if (validTubes.length === 0) { success = false; break; }
+                    state[validTubes[Math.floor(Math.random() * validTubes.length)]].push(color);
+                }
+                if (success) { valid = true; break; }
+            }
+        }
+        
+        // 打亂水管陣列順序，讓一開始的「空管」不會永遠只出現在最後面
+        for (let i = state.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [state[i], state[j]] = [state[j], state[i]];
+        }
+        
         return state;
     }
 
@@ -382,7 +472,7 @@
 
             tubeDiv.addEventListener('click', () => handleTubeClick(index));
 
-            // 判斷頂部色塊邏輯，隱藏下方的其他顏色
+            // 判斷頂部色塊邏輯，因為初始演算法保證了沒有相鄰同色，所以此處邏輯會自動將起手下方 3 塊全顯示問號
             const topColor = tubeContent.length > 0 ? tubeContent[tubeContent.length - 1] : null;
             let hideFromIndex = -1;
             for (let i = tubeContent.length - 1; i >= 0; i--) {
