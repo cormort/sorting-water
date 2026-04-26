@@ -135,8 +135,8 @@
         @keyframes pulse-green { from { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 10px rgba(11,232,129,0.3); } to { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 24px rgba(11,232,129,0.7); } }
         @keyframes shake { 0%,100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-5px) rotate(-2deg); } 40% { transform: translateX(5px) rotate(2deg); } 60% { transform: translateX(-4px) rotate(-1.5deg); } 80% { transform: translateX(4px) rotate(1.5deg); } }
 
-        .liquid { width: 100%; height: 25%; transition: background-color 0.3s; position: relative; border-radius: 4px; }
-        .liquid:first-child { border-bottom-left-radius: 22px; border-bottom-right-radius: 22px; }
+        .liquid { width: 100%; height: 25%; transition: background-color 0.3s; position: relative; border-radius: 3px; }
+        .liquid:last-child { border-bottom-left-radius: 29px; border-bottom-right-radius: 29px; }
         .liquid::before { content: ''; position: absolute; top: 0; left: 2px; right: 2px; height: 2.5px; background: rgba(255,255,255,0.35); border-radius: 50%; }
 
         .color-1 { background: linear-gradient(180deg, #ff7b8a, #e8314a); }
