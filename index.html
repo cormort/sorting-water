@@ -29,14 +29,15 @@
         }
         body > * { position: relative; z-index: 1; }
 
-        #mute-btn {
+        #mute-btn, #music-btn {
             position: fixed; top: 14px; right: 14px; background: var(--glass);
             color: var(--text-dim); border: 1px solid var(--glass-b); border-radius: 40px;
             padding: 7px 14px; font-size: 0.8rem; font-family: 'DM Sans', sans-serif;
             font-weight: 500; cursor: pointer; backdrop-filter: blur(12px);
             transition: all 0.2s; z-index: 9999; letter-spacing: 0.5px;
         }
-        #mute-btn:hover { background: var(--glass-b); color: var(--text); }
+        #mute-btn:hover, #music-btn:hover { background: var(--glass-b); color: var(--text); }
+        #music-btn { right: 104px; }
 
         #home-screen, #game-screen { display: flex; flex-direction: column; align-items: center; }
         #home-screen { width: 320px; max-width: 94vw; }
@@ -139,21 +140,22 @@
         .liquid:nth-child(2) { border-bottom-left-radius: 29px; border-bottom-right-radius: 29px; }
         .liquid::before { content: ''; position: absolute; top: 0; left: 2px; right: 2px; height: 2.5px; background: rgba(255,255,255,0.35); border-radius: 50%; }
 
-        .color-1 { background: linear-gradient(180deg, #ff7b8a, #e8314a); }
-        .color-2 { background: linear-gradient(180deg, #7ab8ff, #1e7de8); }
-        .color-3 { background: linear-gradient(180deg, #7bf0a2, #28c95e); }
-        .color-4 { background: linear-gradient(180deg, #ffe07a, #ffaa00); }
-        .color-5 { background: linear-gradient(180deg, #c0c8d8, #6b7899); }
-        .color-6 { background: linear-gradient(180deg, #ff9f7a, #ff5733); }
-        .color-7 { background: linear-gradient(180deg, #34e8c4, #0da88a); }
-        .color-8 { background: linear-gradient(180deg, #b8a8ff, #7c5ce8); }
-        .color-9 { background: linear-gradient(180deg, #ff9fd6, #e0358a); }
-        .color-10 { background: linear-gradient(180deg, #fff3c0, #f0c830); }
-        .color-11 { background: linear-gradient(180deg, #88fcd8, #00cc8a); }
-        .color-12 { background: linear-gradient(180deg, #88ccff, #1080e0); }
-        .color-13 { background: linear-gradient(180deg, #e8eef4, #c0ccda); }
-        .color-14 { background: linear-gradient(180deg, #ffcab0, #e87855); }
-        .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }
+        /* 15 色在色相環均勻分佈、亮度交錯，小色塊也能一眼區分 */
+        .color-1 { background: linear-gradient(180deg, #ff7b8a, #e8314a); }   /* 紅 */
+        .color-2 { background: linear-gradient(180deg, #7ab8ff, #1e7de8); }   /* 藍 */
+        .color-3 { background: linear-gradient(180deg, #7bf0a2, #28c95e); }   /* 綠 */
+        .color-4 { background: linear-gradient(180deg, #ffe07a, #ffaa00); }   /* 黃 */
+        .color-5 { background: linear-gradient(180deg, #b8a8ff, #7c5ce8); }   /* 紫 */
+        .color-6 { background: linear-gradient(180deg, #ff9f5a, #f05e10); }   /* 橘 */
+        .color-7 { background: linear-gradient(180deg, #6ee4f0, #0a9cc0); }   /* 青 */
+        .color-8 { background: linear-gradient(180deg, #ff9fd6, #e0358a); }   /* 桃紅 */
+        .color-9 { background: linear-gradient(180deg, #d8f07a, #96b810); }   /* 萊姆 */
+        .color-10 { background: linear-gradient(180deg, #d0a078, #8a5530); }  /* 棕 */
+        .color-11 { background: linear-gradient(180deg, #f4f7fa, #bcc9d8); }  /* 白 */
+        .color-12 { background: linear-gradient(180deg, #34e8c4, #08a880); }  /* 藍綠 */
+        .color-13 { background: linear-gradient(180deg, #c46a80, #801f38); }  /* 酒紅 */
+        .color-14 { background: linear-gradient(180deg, #8894e8, #3040b0); }  /* 靛藍 */
+        .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }  /* 深灰 */
 
         .color-hidden { background: #1e2540; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .color-hidden::before { display: none; }
@@ -193,6 +195,7 @@
     </style>
 </head>
 <body>
+    <button id="music-btn">🎵 音樂</button>
     <button id="mute-btn">🔊 音效</button>
 
     <div id="home-screen">
@@ -270,7 +273,7 @@
 
 <script>
 (function() {
-    const TUBE_CAPACITY = 4, COUNTDOWN_SECONDS = 90, LS_KEYS = { mute: 'sw_muted', diff: 'sw_diff', best: 'sw_best' };
+    const TUBE_CAPACITY = 4, COUNTDOWN_SECONDS = 90, LS_KEYS = { mute: 'sw_muted', music: 'sw_music', diff: 'sw_diff', best: 'sw_best' };
     let tubes = [], tubesSnapshot = [], moveHistory = [], selectedTubeIndex = null,
         isGameOver = false, isAnimating = false, timerInterval = null, currentTime = 0,
         gameMode = 'stopwatch', currentDifficulty = 6, moveCount = 0, hintTimeout = null, hintActive = false,
@@ -294,12 +297,14 @@
 
     function playTone(freq, type, dur, vol = 0.04) {
         if (isMuted || !audioCtx) return;
-        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain(), t = audioCtx.currentTime;
         osc.type = type; osc.frequency.value = freq;
-        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        // 15ms attack 避免爆音
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
         osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + dur);
+        osc.start(t); osc.stop(t + dur);
     }
 
     const SFX = {
@@ -307,13 +312,51 @@
         select: () => playTone(900, 'sine', 0.12, 0.04),
         deselect: () => playTone(500, 'sine', 0.08, 0.03),
         error: () => { playTone(140, 'sawtooth', 0.1, 0.06); playTone(110, 'sawtooth', 0.15, 0.05); },
-        pour: () => { for (let i = 0; i < 5; i++) setTimeout(() => playTone(280 + i * 70, 'sine', 0.18, 0.04), i * 90); },
+        pour: () => { for (let i = 0; i < 5; i++) setTimeout(() => playTone(280 + i * 70 + (Math.random() * 50 - 25), 'sine', 0.18, 0.04), i * 90 + Math.random() * 20); },
         complete: () => { [392, 494, 587].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.5, 0.07), i * 120)); },
         win: () => { [261.63, 329.63, 392, 523.25, 659.25, 784].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.5, 0.09), i * 130)); },
         tick: () => playTone(440, 'square', 0.05, 0.02),
     };
 
-    document.body.addEventListener('click', () => { if (!isMuted) initAudio(); }, { once: true });
+    // 背景音樂：程序化 lo-fi 琶音（Am–F–C–G），零音檔
+    let musicOn = false, musicTimer = null, musicStep = 0;
+    const CHORDS = [
+        { b: 110.00, n: [220.00, 261.63, 329.63, 440.00] },  // Am
+        { b: 87.31,  n: [174.61, 220.00, 261.63, 349.23] },  // F
+        { b: 130.81, n: [261.63, 329.63, 392.00, 523.25] },  // C
+        { b: 98.00,  n: [196.00, 246.94, 293.66, 392.00] },  // G
+    ];
+
+    function musicTick() {
+        if (isMuted || !audioCtx) return;
+        musicStep++;
+        const ch = CHORDS[Math.floor(musicStep / 16) % CHORDS.length];
+        if (musicStep % 16 === 1) playTone(ch.b, 'triangle', 2.5, 0.035);
+        if (Math.random() < 0.55) {
+            const f = ch.n[Math.floor(Math.random() * ch.n.length)] * (Math.random() < 0.25 ? 2 : 1);
+            playTone(f, 'sine', 1.4, 0.016);
+        }
+    }
+
+    function startMusic() {
+        if (musicTimer || !musicOn) return;
+        initAudio();
+        musicStep = 0;
+        musicTimer = setInterval(musicTick, 300);
+    }
+
+    function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
+
+    function toggleMusic() {
+        musicOn = !musicOn;
+        const btn = $('music-btn');
+        btn.textContent = musicOn ? '🎵 音樂' : '🎵 關閉';
+        btn.style.color = musicOn ? '' : 'var(--danger)';
+        localStorage.setItem(LS_KEYS.music, musicOn);
+        if (musicOn) startMusic(); else stopMusic();
+    }
+
+    document.body.addEventListener('click', () => { initAudio(); if (musicOn) startMusic(); }, { once: true });
 
     function deepClone(state) { return state.map(t => [...t]); }
 
@@ -321,6 +364,7 @@
         const moves = [];
         for (let from = 0; from < state.length; from++) {
             if (state[from].length === 0) continue;
+            if (state[from].length === TUBE_CAPACITY && state[from].every(c => c === state[from][0])) continue;
             const top = state[from][state[from].length - 1];
             for (let to = 0; to < state.length; to++) {
                 if (from === to || state[to].length >= TUBE_CAPACITY) continue;
@@ -524,6 +568,11 @@
                     if (isDeadEnd() && !checkWinCondition()) $('message').textContent = '😵 沒有可用的移動了，試試撤銷！';
                     else checkWinCondition();
                 });
+            } else if (tubes[index].length > 0 && !(tubes[index].length === TUBE_CAPACITY && tubes[index].every(c => c === tubes[index][0]))) {
+                // 不能倒但目標非空且未完成 → 直接改選該管，省一次點擊
+                SFX.select();
+                selectedTubeIndex = index;
+                renderBoard();
             } else {
                 triggerShake(index);
             }
@@ -624,7 +673,7 @@
         const numDone = countCompleted();
         if (numDone === currentDifficulty) SFX.win();
         else SFX.complete();
-        saveBestScore();
+        const isNewRecord = saveBestScore();
         setTimeout(() => {
             const overlay = $('win-overlay'), statsEl = $('win-stats'), subEl = $('win-subtitle');
             const fmt = t => Math.floor(t / 60).toString().padStart(2, '0') + ':' + (t % 60).toString().padStart(2, '0');
@@ -638,6 +687,7 @@
                 statsEl.textContent = moveCount + ' 步完成';
                 subEl.textContent = '悠閒地完成了所有分類';
             }
+            if (isNewRecord) subEl.textContent = '🏆 新紀錄！' + subEl.textContent;
             overlay.classList.add('show');
             triggerWinAnimation();
         }, 300);
@@ -686,13 +736,15 @@
     function saveBestScore() {
         const best = JSON.parse(localStorage.getItem(LS_KEYS.best) || '{}');
         const key = currentDifficulty + '_' + gameMode;
+        let isNewRecord = false;
         if (gameMode === 'stopwatch') {
-            if (!best[key] || currentTime < best[key]) best[key] = currentTime;
+            if (!best[key] || currentTime < best[key]) { best[key] = currentTime; isNewRecord = true; }
         } else if (gameMode === 'countdown') {
-            if (!best[key] || currentTime > best[key]) best[key] = currentTime;
+            if (!best[key] || currentTime > best[key]) { best[key] = currentTime; isNewRecord = true; }
         }
         localStorage.setItem(LS_KEYS.best, JSON.stringify(best));
         renderBestScores();
+        return isNewRecord;
     }
 
     function renderBestScores() {
@@ -741,8 +793,9 @@
         clearInterval(timerInterval);
         currentTime = gameMode === 'countdown' ? COUNTDOWN_SECONDS : 0;
         updateTimerDisplay();
-        if (gameMode !== 'normal') { timerInterval = setInterval(tickTimer, 1000); $('timer-display').textContent = '00:00'; }
-        else { $('timer-display').textContent = '∞'; }
+        if (gameMode !== 'normal') timerInterval = setInterval(tickTimer, 1000);
+        else $('timer-display').textContent = '∞';
+        $('timer-display').classList.remove('danger');
         $('undo-btn').disabled = true;
         renderBoard();
         updateProgress();
@@ -786,6 +839,7 @@
         updateTimerDisplay();
         if (gameMode !== 'normal') timerInterval = setInterval(tickTimer, 1000);
         else $('timer-display').textContent = '∞';
+        $('timer-display').classList.remove('danger');
         renderBoard();
         updateProgress();
     }
@@ -799,6 +853,12 @@
         btn.textContent = isMuted ? '🔇 靜音' : '🔊 音效';
         btn.style.color = isMuted ? 'var(--danger)' : '';
         btn.addEventListener('click', toggleMute);
+
+        musicOn = localStorage.getItem(LS_KEYS.music) !== 'false';
+        const mbtn = $('music-btn');
+        mbtn.textContent = musicOn ? '🎵 音樂' : '🎵 關閉';
+        mbtn.style.color = musicOn ? '' : 'var(--danger)';
+        mbtn.addEventListener('click', toggleMusic);
 
         document.querySelectorAll('.diff-pill').forEach(p => {
             if (parseInt(p.dataset.diff) === currentDifficulty) p.classList.add('active');
