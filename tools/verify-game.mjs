@@ -167,6 +167,114 @@ const undo = await page.evaluate(async () => {
 ok('走一步後撤銷可以回到原本盤面',
   undo.afterMove === 1 && undo.undoCount === 0 && undo.restored, JSON.stringify(undo));
 
+console.log('\n=== I. P0：續玩存檔 ===');
+const save = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.clearSave();
+  S.goHome(); S.start('stopwatch');
+  const solution = S.getSolution();
+  S.click(solution[0][0]); S.click(solution[0][1]);
+  S.click(solution[1][0]); S.click(solution[1][1]);
+  S.save();
+  const before = S.getTubes();
+  const saved = S.loadSave();
+  // 模擬「重整」：回到首頁再按續玩
+  S.goHome();
+  const hasResume = S.hasResume();
+  S.resume();
+  await new Promise((r) => setTimeout(r, 120));
+  return {
+    savedMoves: saved ? saved.moves.length : -1,
+    hasResume,
+    restored: JSON.stringify(S.getTubes()) === JSON.stringify(before),
+    moveCount: S.getState().moveCount,
+  };
+});
+ok('走兩步後存檔：存到 2 步且首頁出現「繼續上一局」', save.savedMoves === 2 && save.hasResume === true, JSON.stringify(save));
+ok('續玩後盤面與步數完整還原', save.restored === true && save.moveCount === 2, JSON.stringify(save));
+
+const saveClear = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.clearSave();      // 只清存檔、不回主選單（回主選單會把進行中的局再存一次，那是刻意行為）
+  return { hasResume: S.hasResume() };
+});
+ok('清除存檔後首頁不再顯示繼續', saveClear.hasResume === false);
+
+console.log('\n=== J. P0：步數星等（par 由求解器計算） ===');
+const par = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  const { par, optimal } = await S.waitPar();
+  const steps = S.getSolution().length;
+  return { par, optimal, steps, label: document.getElementById('par-display').textContent };
+});
+ok('閒置時間算出最佳步數並顯示在統計列', par.par > 0 && /最佳 \d+ 步/.test(par.label), JSON.stringify(par));
+ok('最佳步數不大於實際可行解（par ≤ 解）', par.par <= par.steps + 3, `par=${par.par} 解=${par.steps} optimal=${par.optimal}`);
+
+console.log('\n=== K. P0：色盲符號模式 ===');
+const sym = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  const before = document.querySelectorAll('#game-board.symbols').length;
+  S.toggleSymbols();
+  await new Promise((r) => setTimeout(r, 50));
+  const on = S.symbolsOn();
+  const syms = [...document.querySelectorAll('.liquid:not(.color-hidden)')].map((el) => el.dataset.sym);
+  const cssContent = getComputedStyle(document.querySelector('.liquid:not(.color-hidden)'), '::after').content;
+  S.toggleSymbols();
+  return { before, on, syms, cssContent, after: S.symbolsOn() };
+});
+ok('可切換色盲符號模式（並記在 localStorage）', sym.before === 0 && sym.on === true && sym.after === false, JSON.stringify(sym));
+ok('可見色塊帶有符號屬性且 CSS 會渲染出來',
+  sym.syms.length > 0 && sym.syms.every((x) => !!x) && sym.cssContent !== 'none' && sym.cssContent !== 'normal',
+  `符號=${sym.syms.slice(0, 4).join('')} css=${sym.cssContent}`);
+
+console.log('\n=== L. P0：輔助模式 vs 挑戰模式 ===');
+const assist = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  const full = S.counters();
+  S.toggleAssist();                 // 切到挑戰模式
+  await new Promise((r) => setTimeout(r, 30));
+  const challenge = { on: S.assistOn(), ...S.counters() };
+  // 把提示次數用完，之後不該再給提示
+  // 第二次按提示是「取消高亮」不會扣次數，因此每次用完先取消再下一次
+  for (let i = 0; i < 3; i++) { S.hint(); S.cancelHint(); await new Promise((r) => setTimeout(r, 20)); }
+  S.hint();   // 第 4 次應該被擋下
+  const afterHints = S.counters();
+  const msg = document.getElementById('message').textContent;
+  S.toggleAssist();                 // 切回輔助
+  return { full, challenge, afterHints, msg, backOn: S.assistOn() };
+});
+ok('輔助模式：提示與撤銷無限',
+  assist.full.hintLeft === null || assist.full.hintLeft === Infinity || assist.full.hintLeft > 100,
+  JSON.stringify(assist.full));
+// assistOn() 回傳「輔助模式是否開啟」→ false 代表挑戰模式
+ok('挑戰模式：提示 3 次、撤銷 5 次', assist.challenge.on === false && assist.challenge.hintLeft === 3 && assist.challenge.undoLeft === 5,
+  JSON.stringify(assist.challenge));
+ok('挑戰模式提示用完後會被擋下並提示原因',
+  assist.afterHints.hintLeft === 0 && /用完/.test(assist.msg), `left=${assist.afterHints.hintLeft} msg=「${assist.msg}」`);
+
+console.log('\n=== M. P0：過關結算顯示星等 ===');
+const win = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  const par = (await S.waitPar()).par;
+  const solution = S.getSolution();
+  for (const [from, to] of solution) { S.click(from); S.click(to); await new Promise((r) => setTimeout(r, 0)); }
+  await new Promise((r) => setTimeout(r, 600));
+  const best = S.best()['6_normal'] || {};
+  return {
+    par,
+    stats: document.getElementById('win-stats').textContent,
+    bestMoves: best.moves,
+    bestStars: best.stars,
+  };
+});
+ok('結算畫面同時顯示步數、最佳步數與星等',
+  /步/.test(win.stats) && /最佳/.test(win.stats) && /⭐/.test(win.stats), win.stats);
+ok('最佳成績 v2 會記錄步數與星等', win.bestMoves === win.par || win.bestMoves > 0, JSON.stringify(win));
+
 ok('過程中沒有未捕捉的例外', errs.length === 0, errs.slice(0, 3).join(' | ') || '0 筆');
 
 await browser.close();

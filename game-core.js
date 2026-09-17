@@ -157,6 +157,72 @@
         return !!solve(state, options).moves;
     }
 
+    /**
+     * 最短解（BFS，每步成本 1）。用於「步數星等」的 par。
+     * 12 色的狀態空間很大，因此有節點上限：超過就回傳 optimal=false 並附上現有最佳解，
+     * 呼叫端可以退回 DFS 解的長度當近似 par（星等有 15% 容差，仍可用）。
+     */
+    function solveOptimal(state, options) {
+        const opts = options || {};
+        const maxNodes = opts.maxNodes || 60000;
+        if (isSolved(state)) return { moves: [], nodes: 0, optimal: true };
+        const startKey = canonical(state);
+        let frontier = [{ state: clone(state), path: [] }];
+        const seen = new Set([startKey]);
+        let nodes = 0;
+        while (frontier.length) {
+            const next = [];
+            for (const node of frontier) {
+                for (const [from, to] of getValidMoves(node.state)) {
+                    nodes++;
+                    const child = applyMove(node.state, from, to);
+                    if (isSolved(child)) return { moves: node.path.concat([[from, to]]), nodes, optimal: true };
+                    const key = canonical(child);
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    next.push({ state: child, path: node.path.concat([[from, to]]) });
+                    if (nodes > maxNodes) {
+                        const approx = solve(state, { maxNodes: 80000 }).moves;
+                        return { moves: approx, nodes, optimal: false };
+                    }
+                }
+            }
+            frontier = next;
+        }
+        return { moves: null, nodes, optimal: true };   // 真的無解
+    }
+
+    /**
+     * 每一步的「有意義程度」評分，星等用：
+     *   3 星 = 步數 ≤ par × 1.15、2 星 ≤ par × 1.5、其餘 1 星。
+     */
+    function starsFor(moves, par) {
+        if (!par || par <= 0) return 1;
+        if (moves <= Math.ceil(par * 1.15)) return 3;
+        if (moves <= Math.ceil(par * 1.5)) return 2;
+        return 1;
+    }
+
+    // 色盲友善：每個顏色一個可辨識的符號（放在可見色塊上）
+    const COLOR_SYMBOLS = ['●', '▲', '■', '★', '◆', '✚', '▼', '◤', '◢', '✖', '♥', '✦'];
+
+    /** 每日挑戰的種子：同一天、同一難度 → 同一題（用 UTC+8 的日期，台灣玩家的「今天」）。 */
+    function dailySeed(dateStr, difficulty) {
+        const str = `${dateStr}#${difficulty}`;
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0;
+    }
+
+    function todayKey(now) {
+        const d = now ? new Date(now) : new Date();
+        const tpe = new Date(d.getTime() + 8 * 3600 * 1000);   // UTC+8
+        return tpe.toISOString().slice(0, 10);
+    }
+
     // ── 關卡產生 ──
 
     function buildSolvedState(numColors, numEmpty) {
@@ -254,7 +320,8 @@
         TUBE_CAPACITY, mulberry32, clone,
         pourCount, canPour, applyMove,
         isUniform, isCompleteTube, isSolved, isDeadEnd, getValidMoves,
-        canonical, solve, isSolvable,
+        canonical, solve, isSolvable, solveOptimal, starsFor,
+        COLOR_SYMBOLS, dailySeed, todayKey,
         buildSolvedState, reverseScramble, hasAdjacentSameColor, shuffleTubes, generateLevel,
     };
 });

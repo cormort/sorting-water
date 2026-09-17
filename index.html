@@ -158,6 +158,12 @@
         .color-14 { background: linear-gradient(180deg, #8894e8, #3040b0); }  /* 靛藍 */
         .color-15 { background: linear-gradient(180deg, #7a8088, #353b42); }  /* 深灰 */
 
+        /* 色盲符號模式：可見色塊疊上形狀（顏色不再是唯一資訊） */
+        #game-board.symbols .liquid:not(.color-hidden)::after {
+            content: attr(data-sym);
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; font-weight: bold; color: rgba(0,0,0,0.55); text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+        }
         .color-hidden { background: #1e2540; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .color-hidden::before { display: none; }
         .color-hidden::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; color: rgba(255,255,255,0.4); }
@@ -220,11 +226,21 @@
             <div class="diff-pill" data-diff="12"><span class="diff-icon">👹</span><span class="diff-label">地獄<br>12色</span></div>
         </div>
 
+        <button id="resume-btn" class="mode-btn btn-normal" style="display:none;width:100%;margin-bottom:10px;">
+            <span>▶</span><span><span class="mode-title">繼續上一局</span><span class="mode-desc" id="resume-desc"></span></span>
+        </button>
+
         <div class="home-section-label">模式</div>
         <div class="mode-grid">
             <button class="mode-btn btn-stopwatch" data-mode="stopwatch"><span>⏱</span><span><span class="mode-title">計時挑戰</span><span class="mode-desc">看看你要多久才能完成</span></span></button>
             <button class="mode-btn btn-countdown" data-mode="countdown"><span>⏳</span><span><span class="mode-title">90 秒限時</span><span class="mode-desc">時間不等人，全力衝！</span></span></button>
             <button class="mode-btn btn-normal" data-mode="normal"><span>☕</span><span><span class="mode-title">輕鬆模式</span><span class="mode-desc">無時間限制，慢慢解</span></span></button>
+        </div>
+
+        <div class="home-section-label">設定</div>
+        <div class="diff-row">
+            <div class="diff-pill" id="symbols-pill" style="cursor:pointer;flex:1;"><span class="diff-icon">🎨</span><span class="diff-label">色盲<br>符號</span></div>
+            <div class="diff-pill active" id="assist-pill" style="cursor:pointer;flex:1;"><span class="diff-icon">🧭</span><span class="diff-label">輔助<br>全開</span></div>
         </div>
 
         <div class="home-section-label">最好成績</div>
@@ -245,6 +261,7 @@
         <div class="stats-row">
             <div class="stat-chip" id="timer-display">00:00</div>
             <div class="stat-chip" id="moves-display">0 步</div>
+            <div class="stat-chip" id="par-display" title="求解器算出的最佳步數（12 色為近似值）">最佳 –</div>
         </div>
 
         <div class="progress-wrap">
@@ -288,9 +305,17 @@
     // 同一份程式碼由 test-core.mjs 在 Node 驗證（舊版的產生器有不可解的後備路徑）。
     const Core = window.SortingWaterCore;
     const TUBE_CAPACITY = Core.TUBE_CAPACITY;
-    const COUNTDOWN_SECONDS = 90, LS_KEYS = { mute: 'sw_muted', music: 'sw_music', diff: 'sw_diff', best: 'sw_best' };
+    const COUNTDOWN_SECONDS = 90, LS_KEYS = {
+        mute: 'sw_muted', music: 'sw_music', diff: 'sw_diff',
+        best: 'sw_best',              // 舊版：時間（數字），載入時遷移進 bestV2
+        bestV2: 'sw_best_v2',         // { "6_stopwatch": { time, moves, stars, par } }
+        save: 'sw_save',              // 進行中的盤面（可續玩）
+        symbols: 'sw_symbols',        // 色盲符號模式
+        assist: 'sw_assist',          // 輔助全開（無限提示／撤銷）
+    };
     const HINT_NODE_BUDGET = 60000, MAX_VOICES = 10;
-    let tubes = [], tubesSnapshot = [], moveHistory = [], selectedTubeIndex = null,
+    let tubes = [], tubesSnapshot = [], movesApplied = [], selectedTubeIndex = null,
+        parSteps = 0, parOptimal = false, symbolsOn = false, assistOn = true,
         isGameOver = false, isAnimating = false, timerInterval = null, currentTime = 0,
         clockBase = 0, clockStartAt = 0,   // wall-clock：避免 setInterval 漂移與背景節流
         gameMode = 'stopwatch', currentDifficulty = 6, moveCount = 0, hintTimeout = null, hintActive = false,
@@ -474,6 +499,8 @@
             tubeContent.forEach((color, i) => {
                 const liq = document.createElement('div');
                 liq.className = 'liquid' + (i <= hideFromIndex ? ' color-hidden' : ' color-' + color);
+                // 色盲符號模式靠這個屬性顯示形狀（顏色不再是唯一資訊）
+                liq.dataset.sym = Core.COLOR_SYMBOLS[(color - 1) % Core.COLOR_SYMBOLS.length];
                 tubeDiv.appendChild(liq);
             });
         });
@@ -501,7 +528,7 @@
         } else {
             if (canPour(selectedTubeIndex, index)) {
                 isAnimating = true;
-                moveHistory.push(deepClone(tubes));
+                movesApplied.push([selectedTubeIndex, index]);
                 $('undo-btn').disabled = false;
                 moveCount++;
                 SFX.pour();
@@ -511,6 +538,7 @@
                     isAnimating = false;
                     renderBoard();
                     updateProgress();
+                    saveProgress();
                     if (isDeadEnd() && !checkWinCondition()) $('message').textContent = '😵 沒有可用的移動了，試試撤銷！';
                     else checkWinCondition();
                 });
@@ -563,6 +591,11 @@
         SFX.click();
         clearHintHighlights();
         if (hintActive) { hintActive = false; return; }
+        if (!assistOn && hintLeft <= 0) {
+            $('message').textContent = '提示次數用完（可在首頁開啟輔助模式）';
+            return;
+        }
+        if (!assistOn) { hintLeft--; updateAssistLabels(); }
         // 用求解器算出「真的走得完」的下一步，而不是貪心猜一步（舊版常把人帶進死局）。
         // 有節點預算，找不到解就退回合法移動的第一個。
         const solution = Core.solve(tubes, { maxNodes: HINT_NODE_BUDGET }).moves;
@@ -589,25 +622,45 @@
         document.querySelectorAll('.hint-source, .hint-target').forEach(el => el.classList.remove('hint-source', 'hint-target'));
     }
 
+    /** 從初始盤面重放前 n 步（撤銷＝少放一步），不需要為每一步留一份盤面快照。 */
+    function rebuildFromMoves(keep) {
+        let state = deepClone(tubesSnapshot);
+        for (let i = 0; i < keep; i++) {
+            const [from, to] = movesApplied[i];
+            state = Core.applyMove(state, from, to);
+        }
+        return state;
+    }
+
     function undoMove() {
-        if (moveHistory.length === 0 || isGameOver) return;
+        if (movesApplied.length === 0 || isGameOver) return;
+        if (!assistOn && undoLeft <= 0) {
+            $('message').textContent = '撤銷次數用完（可在首頁開啟輔助模式）';
+            triggerShake(selectedTubeIndex === null ? 0 : selectedTubeIndex);
+            return;
+        }
         SFX.deselect();
-        tubes = moveHistory.pop();
+        movesApplied.pop();
+        if (!assistOn) undoLeft--;
+        tubes = rebuildFromMoves(movesApplied.length);
         selectedTubeIndex = null;
         moveCount = Math.max(0, moveCount - 1);
         clearHintHighlights();
         hintActive = false;
         $('moves-display').textContent = moveCount + ' 步';
-        $('undo-btn').disabled = moveHistory.length === 0;
+        $('undo-btn').disabled = movesApplied.length === 0;
+        updateUndoLabel();
         $('message').textContent = '';
         renderBoard();
         updateProgress();
+        saveProgress();
     }
 
     function checkWinCondition() {
         if (!Core.isSolved(tubes)) return false;
         isGameOver = true;
         clearInterval(timerInterval);
+        clearProgress();
         const numDone = countCompleted();
         if (numDone === currentDifficulty) SFX.win();
         else SFX.complete();
@@ -615,14 +668,17 @@
         setTimeout(() => {
             const overlay = $('win-overlay'), statsEl = $('win-stats'), subEl = $('win-subtitle');
             const fmt = t => Math.floor(t / 60).toString().padStart(2, '0') + ':' + (t % 60).toString().padStart(2, '0');
+            const stars = Core.starsFor(moveCount, parSteps);
+            const starText = parSteps ? ' ' + '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '';
+            const parText = parSteps ? `（最佳 ${parSteps} 步${parOptimal ? '' : '＊'}）` : '';
             if (gameMode === 'stopwatch') {
-                statsEl.textContent = fmt(currentTime) + '  ·  ' + moveCount + ' 步';
+                statsEl.textContent = fmt(currentTime) + '  ·  ' + moveCount + ' 步' + parText + starText;
                 subEl.textContent = '完美地完成了所有分類！';
             } else if (gameMode === 'countdown') {
-                statsEl.textContent = '剩餘 ' + fmt(currentTime) + '  ·  ' + moveCount + ' 步';
+                statsEl.textContent = '剩餘 ' + fmt(currentTime) + '  ·  ' + moveCount + ' 步' + parText + starText;
                 subEl.textContent = '在時限內完成，太厲害了！';
             } else {
-                statsEl.textContent = moveCount + ' 步完成';
+                statsEl.textContent = moveCount + ' 步完成' + parText + starText;
                 subEl.textContent = '悠閒地完成了所有分類';
             }
             if (isNewRecord) subEl.textContent = '🏆 新紀錄！' + subEl.textContent;
@@ -689,33 +745,48 @@
     }
 
     function saveBestScore() {
-        const best = JSON.parse(localStorage.getItem(LS_KEYS.best) || '{}');
+        const best = loadBest();
         const key = currentDifficulty + '_' + gameMode;
+        const entry = best[key] || {};
         let isNewRecord = false;
+
         if (gameMode === 'stopwatch') {
-            if (!best[key] || currentTime < best[key]) { best[key] = currentTime; isNewRecord = true; }
+            if (entry.time === undefined || currentTime < entry.time) { entry.time = currentTime; isNewRecord = true; }
         } else if (gameMode === 'countdown') {
-            if (!best[key] || currentTime > best[key]) { best[key] = currentTime; isNewRecord = true; }
+            if (entry.time === undefined || currentTime > entry.time) { entry.time = currentTime; isNewRecord = true; }
         }
-        localStorage.setItem(LS_KEYS.best, JSON.stringify(best));
+        // 步數與星等三種模式都記（輕鬆模式沒有時間，步數就是唯一的成績）
+        if (entry.moves === undefined || moveCount < entry.moves) { entry.moves = moveCount; isNewRecord = true; }
+        if (parSteps) entry.par = parSteps;
+        entry.stars = Math.max(entry.stars || 0, Core.starsFor(moveCount, parSteps));
+        entry.ts = Date.now();
+        best[key] = entry;
+
+        try { localStorage.setItem(LS_KEYS.bestV2, JSON.stringify(best)); } catch (err) { /* 忽略 */ }
         renderBestScores();
         return isNewRecord;
     }
 
     function renderBestScores() {
-        const best = JSON.parse(localStorage.getItem(LS_KEYS.best) || '{}'), el = $('best-scores');
+        const best = loadBest(), el = $('best-scores');
         el.innerHTML = '';
-        const diffNames = { 6: '簡單', 8: '中等', 10: '困難', 12: '地獄' };
+        const diffNames = DIFF_NAMES;
         const modes = [{ k: 'stopwatch', n: '⏱ 計時' }, { k: 'countdown', n: '⏳ 限時' }, { k: 'normal', n: '☕ 輕鬆' }];
         const diffs = [6, 8, 10, 12];
         diffs.forEach(d => {
             modes.forEach(m => {
-                const key = d + '_' + m.k, val = best[key];
-                if (val !== undefined) {
+                const key = d + '_' + m.k, entry = best[key];
+                if (entry !== undefined) {
                     const div = document.createElement('div');
-                    div.style.cssText = 'background:var(--glass);border:1px solid var(--glass-b);border-radius:8px;padding:6px 12px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;';
-                    const fmt = t => Math.floor(t / 60).toString().padStart(2, '0') + ':' + (t % 60).toString().padStart(2, '0');
-                    div.innerHTML = '<span style="color:var(--text-dim)">' + diffNames[d] + ' ' + m.n + '</span><span style="color:var(--gold);font-family:monospace;font-weight:bold">' + (m.k === 'countdown' ? '剩' + fmt(val) : fmt(val)) + '</span>';
+                    div.style.cssText = 'background:var(--glass);border:1px solid var(--glass-b);border-radius:8px;padding:6px 12px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;gap:8px;';
+                    const fmt = fmtTime;
+                    const left = diffNames[d] + ' ' + m.n;
+                    const time = entry.time !== undefined ? (m.k === 'countdown' ? '剩' + fmt(entry.time) : fmt(entry.time)) : '';
+                    const moves = entry.moves !== undefined ? entry.moves + ' 步' : '';
+                    const stars = entry.stars ? '⭐'.repeat(entry.stars) : '';
+                    div.innerHTML = '<span style="color:var(--text-dim)">' + left + '</span>'
+                        + '<span style="color:var(--gold);font-family:monospace;font-weight:bold">'
+                        + [time, moves, stars].filter(Boolean).join(' · ') + '</span>';
                     el.appendChild(div);
                 }
             });
@@ -725,7 +796,7 @@
         }
     }
 
-    function startGame(mode) {
+    function startGame(mode, restore) {
         SFX.click();
         gameMode = mode;
         $('home-screen').style.display = 'none';
@@ -733,28 +804,40 @@
         $('win-overlay').classList.remove('show');
         $('lose-overlay').classList.remove('show');
 
-        tubes = generateRandomLevel(currentDifficulty);
-        tubesSnapshot = deepClone(tubes);
-        moveHistory = [];
+        if (restore && Array.isArray(restore.snapshot)) {
+            // 續玩：從初始盤面重放已走的步數（存檔只存步數日誌，不存每一步的盤面）
+            tubesSnapshot = Core.clone(restore.snapshot);
+            movesApplied = restore.moves.map((m) => [m[0], m[1]]);
+            tubes = rebuildFromMoves(movesApplied.length);
+            moveCount = movesApplied.length;
+        } else {
+            tubes = generateRandomLevel(currentDifficulty);
+            tubesSnapshot = deepClone(tubes);
+            movesApplied = [];
+            moveCount = 0;
+        }
         selectedTubeIndex = null;
         isGameOver = false;
         isAnimating = false;
-        moveCount = 0;
         hintActive = false;
         clearHintHighlights();
         $('message').textContent = '';
         $('message').style.color = '';
-        $('moves-display').textContent = '0 步';
+        $('moves-display').textContent = moveCount + ' 步';
         clearInterval(timerInterval);
-        currentTime = gameMode === 'countdown' ? COUNTDOWN_SECONDS : 0;
+        currentTime = restore && typeof restore.currentTime === 'number'
+            ? (gameMode === 'countdown' ? Math.max(0, restore.currentTime) : restore.currentTime)
+            : (gameMode === 'countdown' ? COUNTDOWN_SECONDS : 0);
         restartClock();
         updateTimerDisplay();
         if (gameMode !== 'normal') timerInterval = setInterval(tickTimer, 250);
         else $('timer-display').textContent = '∞';
         $('timer-display').classList.remove('danger');
-        $('undo-btn').disabled = true;
+        $('undo-btn').disabled = movesApplied.length === 0;
+        resetAssistCounters();
         renderBoard();
         updateProgress();
+        computePar();
     }
 
     function nextGame() {
@@ -765,6 +848,8 @@
 
     function backToHome() {
         SFX.click();
+        saveProgress();
+        refreshResumeButton();
         clearInterval(timerInterval);
         $('game-screen').style.display = 'none';
         $('home-screen').style.display = 'flex';
@@ -776,11 +861,12 @@
 
     function resetCurrentGame() {
         SFX.click();
+        clearProgress();
         document.querySelectorAll('.confetti').forEach(e => e.remove());
         $('win-overlay').classList.remove('show');
         $('lose-overlay').classList.remove('show');
         tubes = deepClone(tubesSnapshot);
-        moveHistory = [];
+        movesApplied = [];
         selectedTubeIndex = null;
         isGameOver = false;
         isAnimating = false;
@@ -797,8 +883,10 @@
         if (gameMode !== 'normal') timerInterval = setInterval(tickTimer, 250);
         else $('timer-display').textContent = '∞';
         $('timer-display').classList.remove('danger');
+        resetAssistCounters();
         renderBoard();
         updateProgress();
+        computePar();
     }
 
     function bindBoardEvents() {
@@ -818,6 +906,145 @@
             e.preventDefault();          // 避免空白鍵把頁面往下捲
             handleTubeClick(idx);
         });
+    }
+
+    /* ── 續玩存檔（重整或誤關分頁不再整局白費） ── */
+    const MODE_NAMES = { stopwatch: '⏱ 計時', countdown: '⏳ 限時', normal: '☕ 輕鬆' };
+    const DIFF_NAMES = { 6: '簡單', 8: '中等', 10: '困難', 12: '地獄' };
+    const fmtTime = (t) => Math.floor(t / 60).toString().padStart(2, '0') + ':' + (t % 60).toString().padStart(2, '0');
+
+    function saveProgress() {
+        if (isGameOver || movesApplied.length === 0) return;
+        try {
+            localStorage.setItem(LS_KEYS.save, JSON.stringify({
+                v: 1, mode: gameMode, difficulty: currentDifficulty,
+                snapshot: tubesSnapshot, moves: movesApplied, currentTime, ts: Date.now(),
+            }));
+        } catch (err) { /* 無痕模式寫不進去就算了 */ }
+    }
+
+    function clearProgress() {
+        try { localStorage.removeItem(LS_KEYS.save); } catch (err) { /* 忽略 */ }
+        refreshResumeButton();
+    }
+
+    function loadProgress() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(LS_KEYS.save) || 'null');
+            if (!raw || raw.v !== 1 || !Array.isArray(raw.snapshot) || !Array.isArray(raw.moves)) return null;
+            // 存檔要能重放；壞掉的存檔直接丟掉，不要讓玩家卡在壞盤面
+            let state = Core.clone(raw.snapshot);
+            for (const mv of raw.moves) {
+                if (!Array.isArray(mv) || !Core.canPour(state, mv[0], mv[1])) return null;
+                state = Core.applyMove(state, mv[0], mv[1]);
+            }
+            if (Core.isSolved(state)) return null;
+            return raw;
+        } catch (err) { return null; }
+    }
+
+    function refreshResumeButton() {
+        const btn = $('resume-btn');
+        if (!btn) return;
+        const saved = loadProgress();
+        if (!saved) { btn.style.display = 'none'; return; }
+        btn.style.display = 'flex';
+        $('resume-desc').textContent =
+            `${DIFF_NAMES[saved.difficulty] || saved.difficulty} · ${MODE_NAMES[saved.mode] || saved.mode}`
+            + ` · ${saved.moves.length} 步 · ${fmtTime(saved.currentTime)}`;
+    }
+
+    function resumeGame() {
+        const saved = loadProgress();
+        if (!saved) { refreshResumeButton(); return; }
+        currentDifficulty = saved.difficulty;
+        document.querySelectorAll('.diff-pill[data-diff]').forEach((p) => {
+            p.classList.toggle('active', parseInt(p.dataset.diff, 10) === currentDifficulty);
+        });
+        startGame(saved.mode, saved);
+    }
+
+    /* ── 步數星等：用求解器算最佳步數（放在閒置時間算，不擋畫面） ── */
+    function computePar() {
+        parSteps = 0; parOptimal = false;
+        $('par-display').textContent = '最佳 …';
+        const run = () => {
+            const res = Core.solveOptimal(deepClone(tubesSnapshot), { maxNodes: 120000 });
+            parSteps = res.moves ? res.moves.length : 0;
+            parOptimal = res.optimal;
+            updateParLabel();
+        };
+        if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 1200 });
+        else setTimeout(run, 150);
+    }
+
+    function updateParLabel() {
+        const el = $('par-display');
+        if (!el) return;
+        el.textContent = parSteps ? `最佳 ${parSteps} 步${parOptimal ? '' : '＊'}` : '最佳 –';
+        el.title = parOptimal ? '求解器算出的最短步數' : '求解器預算內的最佳解（此難度為近似值）';
+    }
+
+    /* ── 色盲符號模式：可見色塊加上形狀，顏色不再是唯一資訊 ── */
+    function applySymbols() {
+        const board = $('game-board');
+        if (board) board.classList.toggle('symbols', symbolsOn);
+        const pill = $('symbols-pill');
+        if (pill) pill.classList.toggle('active', symbolsOn);
+    }
+
+    function toggleSymbols() {
+        symbolsOn = !symbolsOn;
+        try { localStorage.setItem(LS_KEYS.symbols, symbolsOn ? '1' : '0'); } catch (err) { /* 忽略 */ }
+        applySymbols();
+        SFX.click();
+    }
+
+    /* ── 輔助模式 vs 挑戰模式（挑戰：提示 3 次、撤銷 5 次） ── */
+    const CHALLENGE_HINTS = 3, CHALLENGE_UNDOS = 5;
+    let hintLeft = Infinity, undoLeft = Infinity;
+
+    function resetAssistCounters() {
+        hintLeft = assistOn ? Infinity : CHALLENGE_HINTS;
+        undoLeft = assistOn ? Infinity : CHALLENGE_UNDOS;
+        updateAssistLabels();
+    }
+
+    function updateAssistLabels() {
+        const pill = $('assist-pill');
+        if (pill) {
+            pill.classList.toggle('active', assistOn);
+            pill.querySelector('.diff-label').innerHTML = assistOn ? '輔助<br>全開' : '挑戰<br>模式';
+        }
+        const hintBtn = $('hint-btn'), undoBtn = $('undo-btn');
+        if (hintBtn) hintBtn.textContent = assistOn ? '💡 提示' : `💡 提示 ${hintLeft}`;
+        updateUndoLabel();
+    }
+
+    function updateUndoLabel() {
+        const undoBtn = $('undo-btn');
+        if (!undoBtn) return;
+        undoBtn.textContent = assistOn ? '↩ 撤銷' : `↩ 撤銷 ${undoLeft}`;
+    }
+
+    function toggleAssist() {
+        assistOn = !assistOn;
+        try { localStorage.setItem(LS_KEYS.assist, assistOn ? '1' : '0'); } catch (err) { /* 忽略 */ }
+        resetAssistCounters();
+        SFX.click();
+    }
+
+    /* ── 最佳成績 v2：時間 + 步數 + 星等（舊版數字自動遷移） ── */
+    function loadBest() {
+        let best = {};
+        try { best = JSON.parse(localStorage.getItem(LS_KEYS.bestV2) || '{}') || {}; } catch (err) { best = {}; }
+        try {
+            const legacy = JSON.parse(localStorage.getItem(LS_KEYS.best) || '{}') || {};
+            for (const [key, val] of Object.entries(legacy)) {
+                if (typeof val === 'number' && !best[key]) best[key] = { time: val };
+            }
+        } catch (err) { /* 舊資料壞掉就忽略 */ }
+        return best;
     }
 
     function init() {
@@ -855,6 +1082,21 @@
         });
 
         bindBoardEvents();
+        // 續玩存檔：重整或誤關分頁後可以在首頁接續
+        $('resume-btn').addEventListener('click', resumeGame);
+        refreshResumeButton();
+        // 重整／切到背景時也存一次（最後一步之後才關掉分頁的情況）
+        window.addEventListener('pagehide', saveProgress);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) saveProgress(); });
+
+        // 色盲符號與輔助模式（設定存 localStorage）
+        symbolsOn = localStorage.getItem(LS_KEYS.symbols) === '1';
+        $('symbols-pill').addEventListener('click', toggleSymbols);
+        assistOn = localStorage.getItem(LS_KEYS.assist) !== '0';
+        $('assist-pill').addEventListener('click', toggleAssist);
+        applySymbols();
+        resetAssistCounters();
+
         $('undo-btn').addEventListener('click', undoMove);
         $('hint-btn').addEventListener('click', showHint);
         $('reset-btn').addEventListener('click', resetCurrentGame);
@@ -879,6 +1121,29 @@
                 hint: () => showHint(),
                 undo: () => undoMove(),
                 goHome: () => backToHome(),
+                // P0：續玩存檔／色盲符號／步數星等／輔助模式
+                save: () => saveProgress(),
+                loadSave: () => loadProgress(),
+                clearSave: () => clearProgress(),
+                resume: () => resumeGame(),
+                hasResume: () => $('resume-btn').style.display !== 'none',
+                getPar: () => ({ par: parSteps, optimal: parOptimal }),
+                waitPar: () => new Promise((resolve) => {
+                    const t0 = Date.now();
+                    const check = () => {
+                        if (parSteps > 0 || Date.now() - t0 > 4000) resolve({ par: parSteps, optimal: parOptimal });
+                        else setTimeout(check, 50);
+                    };
+                    check();
+                }),
+                toggleSymbols: () => toggleSymbols(),
+                symbolsOn: () => symbolsOn,
+                assistOn: () => assistOn,
+                toggleAssist: () => toggleAssist(),
+                counters: () => ({ hintLeft, undoLeft }),
+                cancelHint: () => { clearHintHighlights(); hintActive = false; },
+                best: () => loadBest(),
+                symbols: Core.COLOR_SYMBOLS,
                 core: Core,
                 isReducedMotion: () => reduceMotion.matches,
             };
