@@ -132,6 +132,16 @@
         .tube.complete { border-color: rgba(11,232,129,0.5); cursor: default; opacity: 0.85; }
         .tube.shake { animation: shake 0.35s ease; border-color: var(--danger); }
         .tube:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+        /* 地獄模式的上鎖管：只能倒出、不能倒入（8 秒後自動解鎖）。
+           視覺上要一眼看得出來，否則玩家只會覺得「這管不能倒」很奇怪。 */
+        .tube.frozen { border-color: rgba(120, 200, 255, 0.85); box-shadow: inset 0 0 18px rgba(120, 200, 255, 0.35), 0 0 14px rgba(120, 200, 255, 0.25); }
+        .tube.frozen::before {
+            content: '❄ 上鎖';
+            position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+            font-size: 0.62rem; font-weight: bold; white-space: nowrap;
+            color: #bfe6ff; background: rgba(18, 40, 66, 0.9);
+            border: 1px solid rgba(120, 200, 255, 0.6); border-radius: 999px; padding: 1px 6px;
+        }
 
         @keyframes pulse-gold { from { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 12px rgba(247,201,72,0.4); } to { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 28px rgba(247,201,72,0.8); } }
         @keyframes pulse-green { from { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 10px rgba(11,232,129,0.3); } to { box-shadow: inset 0 0 12px rgba(0,0,0,0.4), 0 0 24px rgba(11,232,129,0.7); } }

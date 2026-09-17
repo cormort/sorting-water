@@ -383,6 +383,27 @@ ok('上鎖只擋「倒入」方向：有合法倒出目標時遊戲端允許倒�
   locked.outTarget === -1 || locked.canOut === true, JSON.stringify({ outTarget: locked.outTarget, canOut: locked.canOut }));
 ok('手動解鎖後就不再上鎖', locked.afterUnlock === -1);
 
+// 視覺：上鎖管要有一眼看得出來的標記（先前 CSS 漏掉過一次，測試只驗 class 沒抓到）
+const marker = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome();
+  for (let i = 0; i < 20; i++) {
+    document.querySelector('.diff-pill[data-diff="12"]').click();
+    S.start('normal');
+    await new Promise((r) => setTimeout(r, 40));
+    if (S.lockedTube() >= 0) break;
+  }
+  const el = document.querySelector('.tube.frozen');
+  if (!el) return { found: false };
+  const before = getComputedStyle(el, '::before');
+  const plain = getComputedStyle(document.querySelector('.tube:not(.frozen)'), '::before');
+  return { found: true, content: before.content, position: before.position, borderColor: getComputedStyle(el).borderColor, plainContent: plain.content };
+});
+ok('上鎖管有可見標記（❄ 上鎖 badge）',
+  marker.found === true && /上鎖/.test(marker.content || '') && marker.position === 'absolute'
+  && (marker.plainContent === 'none' || marker.plainContent !== marker.content),
+  JSON.stringify(marker));
+
 const lockTimeout = await page.evaluate(async () => {
   const S = window.__sorting;
   S.goHome();
