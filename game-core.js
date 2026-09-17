@@ -283,7 +283,8 @@
         const opts = options || {};
         const random = rng || Math.random;
         const numColors = Math.max(2, Math.min(16, difficulty | 0 || 6));
-        const numEmpty = numColors <= 10 ? 2 : 3;
+        // 空管數預設 2（<=10 色）或 3；地獄模式可指定 2 讓開局更緊（生成器仍會驗證可解）
+        const numEmpty = opts.numEmpty != null ? opts.numEmpty : (numColors <= 10 ? 2 : 3);
         const attempts = opts.attempts || 12;
         const verifyBudget = opts.verifyBudget || 40000;
         const scrambleMoves = opts.scrambleMoves || (220 + numColors * 20);

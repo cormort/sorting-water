@@ -113,6 +113,14 @@ ok('極端難度（2 色、16 色）也不會壞掉', () => {
     }
 });
 
+ok('地獄模式的自訂空管數（2 個）仍保證可解', () => {
+    for (let seed = 1; seed <= 4; seed++) {
+        const level = generateLevel(12, mulberry32(seed * 31), { numEmpty: 2, attempts: 8, verifyBudget: 40000 });
+        assert.strictEqual(level.length, 14, '應該是 12 色 + 2 空管');
+        assert.ok(solve(level, { maxNodes: 200000 }).moves, '2 空管的地獄盤面必須有解');
+    }
+});
+
 console.log('\n=== D. 最短解（步數星等的 par） ===');
 ok('最短解比 DFS 解短或相等，而且照著走也會完成', () => {
     let shorter = 0;

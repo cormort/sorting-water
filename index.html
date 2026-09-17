@@ -164,6 +164,10 @@
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             font-size: 1rem; font-weight: bold; color: rgba(0,0,0,0.55); text-shadow: 0 1px 0 rgba(255,255,255,0.35);
         }
+        /* 下層顏色「露出來」的短高亮（盲眼模式的重要回饋） */
+        @keyframes reveal-pop { 0% { filter: brightness(2.2); } 100% { filter: brightness(1); } }
+        .liquid.revealed { animation: reveal-pop 0.7s ease; }
+        @media (prefers-reduced-motion: reduce) { .liquid.revealed { animation: none; } }
         .color-hidden { background: #1e2540; position: relative; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
         .color-hidden::before { display: none; }
         .color-hidden::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; color: rgba(255,255,255,0.4); }
@@ -230,6 +234,10 @@
             <span>▶</span><span><span class="mode-title">繼續上一局</span><span class="mode-desc" id="resume-desc"></span></span>
         </button>
 
+        <button id="daily-btn" class="mode-btn btn-countdown" style="width:100%;margin-bottom:10px;">
+            <span>📅</span><span><span class="mode-title">每日挑戰</span><span class="mode-desc" id="daily-desc">每天同一題，8 色</span></span>
+        </button>
+
         <div class="home-section-label">模式</div>
         <div class="mode-grid">
             <button class="mode-btn btn-stopwatch" data-mode="stopwatch"><span>⏱</span><span><span class="mode-title">計時挑戰</span><span class="mode-desc">看看你要多久才能完成</span></span></button>
@@ -253,6 +261,7 @@
             <div class="top-actions">
                 <button class="action-btn" id="undo-btn" disabled>↩ 撤銷</button>
                 <button class="action-btn" id="hint-btn">💡 提示</button>
+                <button class="action-btn" id="peek-btn" title="3 秒內顯示所有顏色（每局 1 次）">🔍 透視</button>
                 <button class="action-btn" id="reset-btn">🔄 重置</button>
                 <button class="action-btn" id="home-btn">🏠</button>
             </div>
@@ -281,6 +290,7 @@
             <div class="win-time" id="win-stats"></div>
             <div class="win-btns">
                 <button class="win-btn win-btn-play" id="next-btn">下一關 ›</button>
+                <button class="win-btn win-btn-share" id="share-btn">📋 分享成績</button>
                 <button class="win-btn win-btn-home" id="win-home-btn">主選單</button>
             </div>
         </div>
@@ -312,10 +322,18 @@
         save: 'sw_save',              // 進行中的盤面（可續玩）
         symbols: 'sw_symbols',        // 色盲符號模式
         assist: 'sw_assist',          // 輔助全開（無限提示／撤銷）
+        daily: 'sw_daily',            // 每日挑戰紀錄 { "2026-09-17": { moves, time, stars } }
     };
+    const DAILY_DIFFICULTY = 8, PEEK_MS = 3000, PEEK_PER_GAME = 1;
+    const REWARD_EVERY = 3, REWARD_MAX = 2;   // 每完成 3 管給 1 個空管，每局最多 2 次
+    const LOCK_MS = 8000;                     // 地獄模式：上鎖管幾毫秒後自動解鎖（用時間，不用步數）
+    const HELL_EMPTY = 2;                     // 地獄模式（12 色）開局只給 2 個空管（預設 3）
     const HINT_NODE_BUDGET = 60000, MAX_VOICES = 10;
     let tubes = [], tubesSnapshot = [], movesApplied = [], selectedTubeIndex = null,
         parSteps = 0, parOptimal = false, symbolsOn = false, assistOn = true,
+        dailyMode = false, dailyKey = '', peekLeft = PEEK_PER_GAME, peekUntil = 0,
+        rewardGiven = 0, lockedTube = -1, lockUntil = 0, lockTimer = null, pendingLevel = null,
+        prevCompleted = 0, lastPourInfo = null,
         isGameOver = false, isAnimating = false, timerInterval = null, currentTime = 0,
         clockBase = 0, clockStartAt = 0,   // wall-clock：避免 setInterval 漂移與背景節流
         gameMode = 'stopwatch', currentDifficulty = 6, moveCount = 0, hintTimeout = null, hintActive = false,
@@ -370,7 +388,14 @@
         select: () => playTone(900, 'sine', 0.12, 0.04),
         deselect: () => playTone(500, 'sine', 0.08, 0.03),
         error: () => { playTone(140, 'sawtooth', 0.1, 0.06); playTone(110, 'sawtooth', 0.15, 0.05); },
-        pour: () => { for (let i = 0; i < 5; i++) setTimeout(() => playTone(280 + i * 70 + (Math.random() * 50 - 25), 'sine', 0.18, 0.04), i * 90 + Math.random() * 20); },
+        // 倒了幾顆就響幾聲，音高依「來源管的水位」決定（低水位 → 低音），
+        // 讓耳朵也能聽出「這管快空了」。原本是固定 5 聲隨機音高，跟畫面無關。
+        pour: (drops = 1, level = 0.5) => {
+            const base = 240 + level * 320;
+            for (let i = 0; i < Math.max(1, drops); i++) {
+                setTimeout(() => playTone(base + i * 60, 'sine', 0.18, 0.04), i * 90);
+            }
+        },
         complete: () => { [392, 494, 587].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.5, 0.07), i * 120)); },
         win: () => { [261.63, 329.63, 392, 523.25, 659.25, 784].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.5, 0.09), i * 130)); },
         tick: () => playTone(440, 'square', 0.05, 0.02),
@@ -431,7 +456,9 @@
     // 關卡產生：反向倒水 + 有上限的「消除相鄰同色」微調 + 求解器驗證
     // （舊版的後備路徑是純隨機重分配，不保證可解，且是沒有上限的 while(true)）
     function generateRandomLevel(difficulty) {
-        return Core.generateLevel(difficulty, Math.random);
+        // 地獄模式開局更緊：空管從 3 降為 2（生成器仍會用求解器驗證可解）
+        const opts = difficulty >= 12 ? { numEmpty: HELL_EMPTY } : undefined;
+        return Core.generateLevel(difficulty, Math.random, opts);
     }
 
     function countCompleted() { return tubes.filter(t => t.length === TUBE_CAPACITY && t.every(c => c === t[0])).length; }
@@ -448,6 +475,13 @@
     /** 管子的無障礙描述：「第 2 管：可見 2 顆藍色，另有 2 顆未知」（盲眼模式）。 */
     const isCompleteTube = (tube) => Core.isCompleteTube(tube);
     const tubeEl = (index) => $('game-board').children[index] || null;
+    let lastHiddenCount = [];   // 每管上一次遮住幾層（用來判斷「有顏色露出來」）
+
+    /** 觸覺回饋（震動）；尊重 prefers-reduced-motion。 */
+    function buzz(ms) {
+        if (reduceMotion.matches || !navigator.vibrate) return;
+        try { navigator.vibrate(ms); } catch (err) { /* 有些瀏覽器會擋，忽略 */ }
+    }
 
     /** 管子的無障礙描述：「第 2 管：可見 2 顆，另有 2 顆未知」（盲眼模式）。 */
     function describeTube(tubeContent, index) {
@@ -459,6 +493,7 @@
         }
         const visible = tubeContent.length - 1 - hideFromIndex;
         if (isCompleteTube(tubeContent)) return `第 ${index + 1} 管：已完成`;
+        if (index === lockedTube) return `第 ${index + 1} 管：上鎖中（只能倒出、不能倒入）`;
         const hidden = hideFromIndex + 1;
         return `第 ${index + 1} 管：可見 ${visible} 顆，另有 ${hidden} 顆未知`;
     }
@@ -486,6 +521,7 @@
             const tubeDiv = board.children[index];
             tubeDiv.classList.toggle('selected', selectedTubeIndex === index);
             tubeDiv.classList.toggle('complete', isCompleteTube(tubeContent));
+            tubeDiv.classList.toggle('frozen', index === lockedTube);
             tubeDiv.setAttribute('aria-pressed', selectedTubeIndex === index ? 'true' : 'false');
             tubeDiv.setAttribute('aria-label', describeTube(tubeContent, index));
 
@@ -496,9 +532,17 @@
                 if (tubeContent[i] !== topColor) { hideFromIndex = i; break; }
             }
             for (let i = tubeDiv.children.length - 1; i >= 1; i--) tubeDiv.removeChild(tubeDiv.children[i]);
+            // 透視中（peekUntil 內）暫時不做盲眼遮蔽
+            const reveal = Date.now() < peekUntil;
+            // 這一管之前遮住幾層？變少代表有顏色「露出來」了 → 給一個短高亮當回饋
+            const prevHidden = lastHiddenCount[index] == null ? hideFromIndex + 1 : lastHiddenCount[index];
+            lastHiddenCount[index] = hideFromIndex + 1;
+            const revealed = !reveal && hideFromIndex + 1 < prevHidden;
             tubeContent.forEach((color, i) => {
                 const liq = document.createElement('div');
-                liq.className = 'liquid' + (i <= hideFromIndex ? ' color-hidden' : ' color-' + color);
+                const isHidden = !reveal && i <= hideFromIndex;
+                liq.className = 'liquid' + (isHidden ? ' color-hidden' : ' color-' + color)
+                    + (revealed && !isHidden && i <= prevHidden - 1 ? ' revealed' : '');
                 // 色盲符號模式靠這個屬性顯示形狀（顏色不再是唯一資訊）
                 liq.dataset.sym = Core.COLOR_SYMBOLS[(color - 1) % Core.COLOR_SYMBOLS.length];
                 tubeDiv.appendChild(liq);
@@ -508,6 +552,7 @@
 
     function handleTubeClick(index) {
         if (isGameOver || isAnimating) return;
+        if (!tubes[index]) return;   // 盤面剛好被重建（例如獎勵空管、續玩還原）時的殘留點擊
         clearHintHighlights();
         hintActive = false;
 
@@ -515,7 +560,7 @@
             if (tubes[index].length > 0) {
                 const t = tubes[index];
                 if (t.length === TUBE_CAPACITY && t.every(c => c === t[0])) return;
-                SFX.select();
+                SFX.select(); buzz(8);
                 selectedTubeIndex = index;
                 renderBoard();
             } else {
@@ -531,7 +576,6 @@
                 movesApplied.push([selectedTubeIndex, index]);
                 $('undo-btn').disabled = false;
                 moveCount++;
-                SFX.pour();
                 animatePour(selectedTubeIndex, index, () => {
                     executePour(selectedTubeIndex, index);
                     selectedTubeIndex = null;
@@ -553,14 +597,57 @@
         }
     }
 
-    const canPour = (sourceIdx, targetIdx) => Core.canPour(tubes, sourceIdx, targetIdx);
+    const canPour = (sourceIdx, targetIdx) => {
+        // 上鎖管（地獄模式）只能倒出、不能倒入；時間到或完成任一管就解鎖
+        if (targetIdx === lockedTube) return false;
+        return Core.canPour(tubes, sourceIdx, targetIdx);
+    };
+
+    function unlockTube(reason) {
+        if (lockedTube < 0) return;
+        lockedTube = -1; lockUntil = 0;
+        clearTimeout(lockTimer); lockTimer = null;
+        $('message').textContent = reason || '🔓 上鎖管已解鎖';
+        renderBoard();
+    }
+
+    function scheduleUnlock() {
+        clearTimeout(lockTimer);
+        const ms = Math.max(0, lockUntil - Date.now());
+        lockTimer = setTimeout(() => unlockTube('🔓 時間到，上鎖管自動解鎖'), ms + 20);
+    }
 
     function executePour(sourceIdx, targetIdx) {
         // 倒幾顆的規則只有一份（Core.pourCount）：頂部同色連續數與目標剩餘空間取小
         const count = Core.pourCount(tubes, sourceIdx, targetIdx);
         const src = tubes[sourceIdx], tgt = tubes[targetIdx];
+        const level = src.length ? src.length / TUBE_CAPACITY : 0;
+        lastPourInfo = { drops: count, level };   // 測試用：音效參數與實際倒的數量是否一致
+        SFX.pour(count, level);
         for (let i = 0; i < count; i++) tgt.push(src.pop());
         $('moves-display').textContent = moveCount + ' 步';
+        afterMoveBookkeeping();
+    }
+
+    /**
+     * 每一步之後的盤面事件：
+     *   - 完成任一管 → 凍結全部解凍（地獄模式的節奏：先跨過一道門檻就鬆綁）
+     *   - 每完成 REWARD_EVERY 管（上限 REWARD_MAX 次）→ 獎勵一個空管
+     * 空管是「附加在尾端」，因此步數日誌重放（撤銷／續玩）仍然有效。
+     */
+    function afterMoveBookkeeping() {
+        const completed = countCompleted();
+        if (completed > prevCompleted) buzz(18);
+        prevCompleted = completed;
+        if (completed > 0 && lockedTube >= 0) unlockTube('🔓 完成一管，上鎖管解鎖！');
+        const earned = Math.floor(completed / REWARD_EVERY);
+        while (earned > rewardGiven && rewardGiven < REWARD_MAX) {
+            rewardGiven++;
+            tubes.push([]);
+            tubesSnapshot.push([]);
+            renderBoard();
+            $('message').textContent = `🎁 完成 ${completed} 管，獲得額外空管！`;
+        }
     }
 
     function isDeadEnd() { return Core.isDeadEnd(tubes); }
@@ -580,7 +667,7 @@
     }
 
     function triggerShake(index) {
-        SFX.error();
+        SFX.error(); buzz(28);
         const el = tubeEl(index);
         if (!el) return;
         el.classList.add('shake');
@@ -601,6 +688,11 @@
         const solution = Core.solve(tubes, { maxNodes: HINT_NODE_BUDGET }).moves;
         let best = solution && solution.length ? solution[0] : null;
         let remaining = solution ? solution.length : 0;
+        if (best && best[1] === lockedTube) {
+            const alt = getValidMoves(tubes).find(([f, t]) => t !== lockedTube);
+            best = alt ? [alt[0], alt[1]] : null;
+            remaining = 0;
+        }
         if (!best) {
             const moves = getValidMoves(tubes);
             if (!moves.length) { $('message').textContent = '😵 沒有可用移動，試試撤銷！'; return; }
@@ -664,6 +756,7 @@
         const numDone = countCompleted();
         if (numDone === currentDifficulty) SFX.win();
         else SFX.complete();
+        saveDaily();
         const isNewRecord = saveBestScore();
         setTimeout(() => {
             const overlay = $('win-overlay'), statsEl = $('win-stats'), subEl = $('win-subtitle');
@@ -810,12 +903,43 @@
             movesApplied = restore.moves.map((m) => [m[0], m[1]]);
             tubes = rebuildFromMoves(movesApplied.length);
             moveCount = movesApplied.length;
+            dailyMode = !!restore.daily; dailyKey = restore.dailyKey || '';
+            lockedTube = typeof restore.lockedTube === 'number' ? restore.lockedTube : -1;
+            lockUntil = Date.now() + (typeof restore.lockRemainMs === 'number' ? restore.lockRemainMs : 0);
+            if (lockedTube >= 0) scheduleUnlock();
+            peekLeft = typeof restore.peekLeft === 'number' ? restore.peekLeft : PEEK_PER_GAME;
+            rewardGiven = typeof restore.rewardGiven === 'number' ? restore.rewardGiven : 0;
+        } else if (pendingLevel) {
+            tubes = Core.clone(pendingLevel);
+            tubesSnapshot = deepClone(tubes);
+            movesApplied = [];
+            moveCount = 0;
+            pendingLevel = null;
         } else {
             tubes = generateRandomLevel(currentDifficulty);
             tubesSnapshot = deepClone(tubes);
             movesApplied = [];
             moveCount = 0;
+            dailyMode = false; dailyKey = '';
+            lastHiddenCount = [];
         }
+        // 地獄模式（12 色）開局上鎖一管：只能倒出、不能倒入，8 秒後自動解鎖。
+        // 為什麼不是「整管凍結」：那等於把該管的顏色移出遊戲，12 色盤面常常直接無解
+        // （實測照合法步走 300 步仍無法完成任何一管）。只鎖「倒入」方向時，管內的水仍然
+        // 可以流出，而且解鎖用真實時間而不是步數 —— 玩家永遠等得到，不會死局。
+        lockedTube = -1; lockUntil = 0;
+        clearTimeout(lockTimer); lockTimer = null;
+        if (!restore && currentDifficulty >= 12) {
+            const candidates = tubes.map((t, i) => (t.length >= 2 ? i : -1)).filter((i) => i >= 0);
+            if (candidates.length) {
+                lockedTube = candidates[Math.floor(Math.random() * candidates.length)];
+                lockUntil = Date.now() + LOCK_MS;
+                scheduleUnlock();
+            }
+        }
+        peekLeft = PEEK_PER_GAME; peekUntil = 0; rewardGiven = 0;
+        prevCompleted = countCompleted(); lastHiddenCount = [];
+        updatePeekLabel();
         selectedTubeIndex = null;
         isGameOver = false;
         isAnimating = false;
@@ -871,6 +995,7 @@
         isGameOver = false;
         isAnimating = false;
         moveCount = 0;
+        lastHiddenCount = []; prevCompleted = 0;
         hintActive = false;
         clearHintHighlights();
         $('message').textContent = '';
@@ -917,7 +1042,8 @@
         if (isGameOver || movesApplied.length === 0) return;
         try {
             localStorage.setItem(LS_KEYS.save, JSON.stringify({
-                v: 1, mode: gameMode, difficulty: currentDifficulty,
+                v: 1, mode: gameMode, difficulty: currentDifficulty, daily: dailyMode, dailyKey,
+                lockedTube, lockRemainMs: Math.max(0, lockUntil - Date.now()), peekLeft, rewardGiven,
                 snapshot: tubesSnapshot, moves: movesApplied, currentTime, ts: Date.now(),
             }));
         } catch (err) { /* 無痕模式寫不進去就算了 */ }
@@ -950,8 +1076,80 @@
         if (!saved) { btn.style.display = 'none'; return; }
         btn.style.display = 'flex';
         $('resume-desc').textContent =
-            `${DIFF_NAMES[saved.difficulty] || saved.difficulty} · ${MODE_NAMES[saved.mode] || saved.mode}`
-            + ` · ${saved.moves.length} 步 · ${fmtTime(saved.currentTime)}`;
+            `${saved.daily ? '📅 每日 · ' : ''}${DIFF_NAMES[saved.difficulty] || saved.difficulty}`
+            + ` · ${MODE_NAMES[saved.mode] || saved.mode} · ${saved.moves.length} 步 · ${fmtTime(saved.currentTime)}`;
+    }
+
+    /* ── 每日挑戰：以日期為種子，全球同一題 ── */
+    function loadDaily() {
+        try { return JSON.parse(localStorage.getItem(LS_KEYS.daily) || '{}') || {}; } catch (err) { return {}; }
+    }
+
+    function refreshDailyButton() {
+        const rec = loadDaily()[Core.todayKey()];
+        const desc = $('daily-desc');
+        if (!desc) return;
+        desc.textContent = rec
+            ? `今天已完成：${rec.moves} 步${rec.stars ? ' ' + '⭐'.repeat(rec.stars) : ''}`
+            : `每天同一題，${DIFF_NAMES[DAILY_DIFFICULTY]}（${DAILY_DIFFICULTY} 色）`;
+    }
+
+    function startDaily() {
+        const key = Core.todayKey();
+        const level = Core.generateLevel(DAILY_DIFFICULTY, Core.mulberry32(Core.dailySeed(key, DAILY_DIFFICULTY)));
+        dailyMode = true; dailyKey = key; pendingLevel = level;
+        startGame('stopwatch');
+    }
+
+    function saveDaily() {
+        if (!dailyMode || !dailyKey) return;
+        const all = loadDaily();
+        const prev = all[dailyKey];
+        const stars = Core.starsFor(moveCount, parSteps);
+        if (!prev || moveCount < prev.moves) all[dailyKey] = { moves: moveCount, time: currentTime, stars };
+        try { localStorage.setItem(LS_KEYS.daily, JSON.stringify(all)); } catch (err) { /* 忽略 */ }
+        refreshDailyButton();
+    }
+
+    /* ── 透視：3 秒內顯示所有顏色（每局 1 次） ── */
+    function usePeek() {
+        if (peekLeft <= 0) { $('message').textContent = '透視已經用過了（每局 1 次）'; return; }
+        if (isGameOver || isAnimating) return;
+        peekLeft--;
+        peekUntil = Date.now() + PEEK_MS;
+        SFX.select();
+        renderBoard();
+        $('message').textContent = '🔍 透視中…3 秒';
+        updatePeekLabel();
+        setTimeout(() => { peekUntil = 0; renderBoard(); }, PEEK_MS + 20);
+    }
+
+    function updatePeekLabel() {
+        const btn = $('peek-btn');
+        if (btn) btn.textContent = `🔍 透視 ${peekLeft}`;
+    }
+
+    /* ── 分享成績 ── */
+    function shareText() {
+        const stars = Core.starsFor(moveCount, parSteps);
+        const head = dailyMode
+            ? `水瓶分類 · 每日挑戰 ${dailyKey}（${DAILY_DIFFICULTY} 色）`
+            : `水瓶分類 · ${DIFF_NAMES[currentDifficulty]}（${currentDifficulty} 色）· ${MODE_NAMES[gameMode]}`;
+        const time = gameMode === 'normal' ? '' : ` · ${fmtTime(currentTime)}`;
+        return `${head}\n${moveCount} 步${time}${parSteps ? `（最佳 ${parSteps} 步）` : ''} ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}\nhttps://cormort.github.io/sorting-water/`;
+    }
+
+    async function shareScore() {
+        const text = shareText();
+        try {
+            if (navigator.share) await navigator.share({ text });
+            else if (navigator.clipboard) { await navigator.clipboard.writeText(text); $('message').textContent = '📋 成績已複製到剪貼簿'; }
+            else throw new Error('no clipboard');
+        } catch (err) {
+            // 使用者取消分享不算錯誤；真的沒有 API 時退回提示
+            if (err && err.name === 'AbortError') return;
+            $('message').textContent = '（此瀏覽器不支援複製，請手動截圖）';
+        }
     }
 
     function resumeGame() {
@@ -1065,11 +1263,13 @@
         mbtn.style.color = musicOn ? '' : 'var(--danger)';
         mbtn.addEventListener('click', toggleMusic);
 
-        document.querySelectorAll('.diff-pill').forEach(p => {
-            if (parseInt(p.dataset.diff) === currentDifficulty) p.classList.add('active');
+        // 只挑難度 pill：設定列（色盲／輔助）也是 .diff-pill，但沒有 data-diff，
+        // 若一起綁「currentDifficulty = parseInt(dataset.diff)」會變成 NaN
+        document.querySelectorAll('.diff-pill[data-diff]').forEach(p => {
+            if (parseInt(p.dataset.diff, 10) === currentDifficulty) p.classList.add('active');
             else p.classList.remove('active');
             p.addEventListener('click', () => {
-                document.querySelectorAll('.diff-pill').forEach(pp => pp.classList.remove('active'));
+                document.querySelectorAll('.diff-pill[data-diff]').forEach(pp => pp.classList.remove('active'));
                 p.classList.add('active');
                 currentDifficulty = parseInt(p.dataset.diff);
                 localStorage.setItem(LS_KEYS.diff, currentDifficulty);
@@ -1097,6 +1297,10 @@
         applySymbols();
         resetAssistCounters();
 
+        $('daily-btn').addEventListener('click', startDaily);
+        $('peek-btn').addEventListener('click', usePeek);
+        $('share-btn').addEventListener('click', shareScore);
+        refreshDailyButton();
         $('undo-btn').addEventListener('click', undoMove);
         $('hint-btn').addEventListener('click', showHint);
         $('reset-btn').addEventListener('click', resetCurrentGame);
@@ -1144,6 +1348,22 @@
                 cancelHint: () => { clearHintHighlights(); hintActive = false; },
                 best: () => loadBest(),
                 symbols: Core.COLOR_SYMBOLS,
+                // P1：每日挑戰／透視／凍結／獎勵空管／分享
+                startDaily: () => startDaily(),
+                dailyRecord: () => loadDaily()[Core.todayKey()] || null,
+                todayKey: () => Core.todayKey(),
+                peek: () => usePeek(),
+                peekState: () => ({ peekLeft, revealing: Date.now() < peekUntil }),
+                lockedTube: () => lockedTube,
+                lockRemainMs: () => Math.max(0, lockUntil - Date.now()),
+                unlockNow: () => unlockTube('（測試）'),
+                pourInfo: () => lastPourInfo,
+                setTubes: (t) => { tubes = Core.clone(t); tubesSnapshot = Core.clone(t); movesApplied = []; lastPourInfo = null; renderBoard(); updateProgress(); },
+                sfxPour: (drops, level) => SFX.pour(drops, level),
+                canPour: (f, t) => canPour(f, t),
+                legalMoves: () => Core.getValidMoves(tubes).map(([f, t, n, srcLen]) => [f, t]),
+                rewardState: () => ({ rewardGiven }),
+                shareText: () => shareText(),
                 core: Core,
                 isReducedMotion: () => reduceMotion.matches,
             };
