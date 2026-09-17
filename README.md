@@ -1,0 +1,56 @@
+# 水瓶分類（Color Sort · Blind Mode）
+
+把同色的水倒在一起的分類遊戲；**盲眼模式**下每管只露出最上層的同色區塊，其餘顯示 `?`。
+
+線上：<https://cormort.github.io/sorting-water/>
+
+## 檔案結構
+
+| 檔案 | 說明 |
+| :--- | :--- |
+| `index.html` | 畫面、輸入、音效與流程（單檔即可執行） |
+| `game-core.js` | **純邏輯層**（UMD）：合法移動、倒水規則、勝負判定、關卡產生、**求解器** |
+| `test-core.mjs` | 純邏輯回歸測試（免安裝、秒級）：`node test-core.mjs` |
+| `tools/verify-game.mjs` | 端對端驗證（Playwright）：產生器可解性、求解器破關、鍵盤、計時器 |
+
+`game-core.js` 以 UMD 輸出（瀏覽器 `window.SortingWaterCore`、Node `import './game-core.js'`），
+所以測試與遊戲共用同一份邏輯，不需要字串切檔或複製貼上。
+
+## 執行與測試
+
+```bash
+python3 -m http.server 8905          # 任何靜態伺服器都可以
+node test-core.mjs                   # 10 項純邏輯測試
+PW_MODULE=/path/to/playwright/index.js node tools/verify-game.mjs   # 17 項端對端
+```
+
+除錯鉤子：`index.html?bot` 會掛出 `window.__sorting`（讀盤面、算解法、模擬點擊）；
+`?mute` 供自動化靜音。
+
+## 這次修掉的東西（優化重點）
+
+1. **關卡有可能無解，甚至卡死瀏覽器** —— 舊版產生器在「反向倒水」失敗後會走一條
+   「純隨機重分配」的後備路徑：它只檢查容量與不相鄰同色，**不保證可解**，而且是
+   **沒有上限的 `while(true)`**。現在改成「反向倒水 → 有上限的消除相鄰同色 →
+   **求解器驗證** → 通過才回傳」，最差情況退回已驗證過的盤面或最簡單的可解盤面。
+   `test-core.mjs` 對 5 個難度 × 8 個種子逐一用求解器驗證可解性並照解走完。
+2. **提示會把人帶進死局** —— 原本只是貪心挑「倒到同色管」的下一步；現在用求解器
+   算出真正走得完的下一步，並顯示「還需約 N 步」（有節點預算，找不到解才退回貪心）。
+3. **每次點擊都重建整個棋盤** —— 舊版 `renderBoard()` 清空 `#game-board` 再重建所有
+   管子與事件監聽；現在管子元素只建立一次、只更新內容與狀態，事件改用委派，
+   **鍵盤焦點因此不會在每次移動後被丟掉**。
+4. **計時器會漂移** —— 原本靠 `setInterval` 每秒 `currentTime++`，分頁被瀏覽器節流時
+   會少算；改成以 `performance.now()` 差值計算，`setInterval` 只負責更新畫面，
+   回到前景時立刻校正。
+5. **音訊資源** —— 每個音都直接連到 `destination`，勝利音效（6 音）疊上音樂與其他
+   音效時容易削波；改為共用一顆 master gain，並加上同時發聲上限與節點回收。
+   分頁切到背景時停止排琶音（省電），回到前景再續。
+6. **可及性／無障礙** —— 管子可用 Tab 聚焦、Enter/Space 操作，具備 `role="button"`
+   與描述內容的 `aria-label`（例如「第 2 管：可見 1 顆，另有 3 顆未知」）；
+   `#message` 加上 `aria-live`；尊重 `prefers-reduced-motion`（不做倒水位移與彩帶）。
+7. 移除 HTML 內與核心重複的純邏輯（`getValidMoves`／`applyMove`／倒水／勝負判定），
+   以及沒有人呼叫的 `applyMove`。
+
+## 授權
+
+MIT，見 `LICENSE`。
