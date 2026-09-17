@@ -8,7 +8,8 @@ import './game-core.js';
 
 const Core = globalThis.SortingWaterCore;
 assert.ok(Core, 'game-core.js 沒有正確輸出 API');
-const { TUBE_CAPACITY, mulberry32, solve, isSolved, generateLevel, getValidMoves, applyMove, isDeadEnd } = Core;
+const { TUBE_CAPACITY, mulberry32, solve, isSolved, generateLevel, getValidMoves, applyMove, isDeadEnd,
+    solveOptimal, starsFor, COLOR_SYMBOLS, dailySeed, todayKey } = Core;
 
 let passed = 0;
 const ok = (name, fn) => { fn(); passed++; console.log(`PASS  ${name}`); };
@@ -110,6 +111,64 @@ ok('極端難度（2 色、16 色）也不會壞掉', () => {
         assert.strictEqual(counts.size, diff);
         assert.ok(solve(level, { maxNodes: 200000 }).moves, `難度 ${diff} 產生出無解盤面`);
     }
+});
+
+console.log('\n=== D. 最短解（步數星等的 par） ===');
+ok('最短解比 DFS 解短或相等，而且照著走也會完成', () => {
+    let shorter = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+        const level = generateLevel(6, mulberry32(seed));
+        const dfs = solve(level, { maxNodes: 200000 }).moves;
+        const opt = solveOptimal(level, { maxNodes: 200000 });
+        assert.ok(opt.moves, '應該找得到最短解');
+        assert.ok(opt.moves.length <= dfs.length, `最短解 ${opt.moves.length} 不該長於 DFS ${dfs.length}`);
+        if (opt.moves.length < dfs.length) shorter++;
+        let s = level.map((t) => [...t]);
+        for (const [from, to] of opt.moves) {
+            assert.ok(Core.canPour(s, from, to), '最短解含有不合法步');
+            s = applyMove(s, from, to);
+        }
+        assert.ok(isSolved(s), '照最短解走完應該完成');
+    }
+    console.log(`      6 個關卡中有 ${shorter} 個 DFS 解比最短解長`);
+});
+ok('節點預算用完時回傳 optimal=false，而不是假裝是最短', () => {
+    const level = generateLevel(12, mulberry32(5));
+    const res = solveOptimal(level, { maxNodes: 3000 });
+    assert.strictEqual(res.optimal, false);
+    assert.ok(res.moves === null || res.moves.length > 0);
+});
+ok('星等門檻：≤par×1.15 三星、≤par×1.5 兩星、其餘一星', () => {
+    assert.strictEqual(starsFor(19, 19), 3);
+    assert.strictEqual(starsFor(21, 19), 3);
+    assert.strictEqual(starsFor(22, 19), 3, '19×1.15 = 21.85，取上界 22 → 仍在三星內');
+    assert.strictEqual(starsFor(23, 19), 2);
+    assert.strictEqual(starsFor(29, 19), 2, '19×1.5 = 28.5，取上界 29 → 兩星');
+    assert.strictEqual(starsFor(30, 19), 1);
+    assert.strictEqual(starsFor(10, 0), 1, '沒有 par 時不該給三星');
+});
+
+console.log('\n=== E. 每日挑戰種子與色盲符號 ===');
+ok('同一天同難度 → 同一組種子；不同天或不同難度 → 不同種子', () => {
+    assert.strictEqual(dailySeed('2026-09-17', 6), dailySeed('2026-09-17', 6));
+    assert.notStrictEqual(dailySeed('2026-09-17', 6), dailySeed('2026-09-18', 6));
+    assert.notStrictEqual(dailySeed('2026-09-17', 6), dailySeed('2026-09-17', 8));
+});
+ok('每日挑戰用同一種子產生的關卡完全一致（可分享同一題）', () => {
+    const a = generateLevel(6, mulberry32(dailySeed('2026-09-17', 6)));
+    const b = generateLevel(6, mulberry32(dailySeed('2026-09-17', 6)));
+    assert.deepStrictEqual(a, b);
+});
+ok('todayKey 是 UTC+8 的日期字串', () => {
+    assert.match(todayKey(), /^\d{4}-\d{2}-\d{2}$/);
+    // 台灣時間比 UTC 快 8 小時：UTC 16:00 是台北的隔天 00:00
+    assert.strictEqual(todayKey(Date.UTC(2026, 8, 17, 15, 30)), '2026-09-17', '台北 23:30 仍是 17 號');
+    assert.strictEqual(todayKey(Date.UTC(2026, 8, 17, 16, 30)), '2026-09-18', '台北 00:30 已是 18 號');
+});
+ok('色盲符號覆蓋所有可能顏色且彼此不同', () => {
+    // 最高難度是 12 色，符號數至少要有 12 個才不會重複
+    assert.ok(COLOR_SYMBOLS.length >= 12, `只有 ${COLOR_SYMBOLS.length} 個符號`);
+    assert.strictEqual(new Set(COLOR_SYMBOLS).size, COLOR_SYMBOLS.length, '符號不可重複');
 });
 
 console.log(`\n${passed} passed`);
