@@ -275,6 +275,221 @@ ok('結算畫面同時顯示步數、最佳步數與星等',
   /步/.test(win.stats) && /最佳/.test(win.stats) && /⭐/.test(win.stats), win.stats);
 ok('最佳成績 v2 會記錄步數與星等', win.bestMoves === win.par || win.bestMoves > 0, JSON.stringify(win));
 
+console.log('\n=== N. P1：每日挑戰（同一天同一題） ===');
+const daily = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.startDaily();
+  await new Promise((r) => setTimeout(r, 80));
+  const first = S.getTubes();
+  const key = S.todayKey();
+  const solvable = S.isSolvable();
+  S.goHome(); S.startDaily();          // 今天再開一次 → 必須完全一樣
+  await new Promise((r) => setTimeout(r, 80));
+  const second = S.getTubes();
+  return { key, same: JSON.stringify(first) === JSON.stringify(second), solvable, colors: new Set(first.flat()).size };
+});
+ok('每日挑戰同一題：同一天重開兩次盤面完全一致且可解',
+  daily.same === true && daily.solvable === true, JSON.stringify(daily));
+ok('每日挑戰固定 8 色', daily.colors === 8, `${daily.colors} 色`);
+
+const dailyDone = await page.evaluate(async () => {
+  const S = window.__sorting;
+  const solution = S.getSolution();
+  for (const [from, to] of solution) { S.click(from); S.click(to); await new Promise((r) => setTimeout(r, 0)); }
+  await new Promise((r) => setTimeout(r, 600));
+  S.goHome();
+  return { rec: S.dailyRecord(), desc: document.getElementById('daily-desc').textContent };
+});
+ok('完成每日挑戰會寫入當天紀錄並顯示在首頁',
+  !!dailyDone.rec && dailyDone.rec.moves > 0 && /今天已完成/.test(dailyDone.desc),
+  JSON.stringify(dailyDone));
+
+console.log('\n=== O. P1：分享成績 ===');
+const share = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.startDaily();
+  await new Promise((r) => setTimeout(r, 60));
+  const solution = S.getSolution();
+  for (const [from, to] of solution) { S.click(from); S.click(to); await new Promise((r) => setTimeout(r, 0)); }
+  await new Promise((r) => setTimeout(r, 500));
+  return { text: S.shareText(), hasShareBtn: !!document.getElementById('share-btn') };
+});
+ok('分享文字包含模式、步數、星等與網址',
+  share.hasShareBtn && /每日挑戰/.test(share.text) && /\d+ 步/.test(share.text) && /⭐/.test(share.text) && /https:\/\/cormort\.github\.io\/sorting-water\//.test(share.text),
+  share.text.replace(/\n/g, ' ｜ '));
+
+console.log('\n=== P. P1：透視（盲眼模式） ===');
+const peek = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  const hiddenBefore = document.querySelectorAll('.color-hidden').length;
+  S.peek();
+  await new Promise((r) => setTimeout(r, 80));
+  const hiddenDuring = document.querySelectorAll('.color-hidden').length;
+  const state = S.peekState();
+  await new Promise((r) => setTimeout(r, 3200));
+  const hiddenAfter = document.querySelectorAll('.color-hidden').length;
+  const btn = document.getElementById('peek-btn').textContent;
+  S.peek();   // 第二次應該被擋下
+  return { hiddenBefore, hiddenDuring, hiddenAfter, state, btn, msg: document.getElementById('message').textContent };
+});
+ok('透視期間所有顏色都會顯示（沒有 color-hidden）',
+  peek.hiddenBefore > 0 && peek.hiddenDuring === 0 && peek.hiddenAfter === peek.hiddenBefore, JSON.stringify(peek));
+ok('透視每局只有一次，用完會被擋下並說明',
+  peek.state.peekLeft === 0 && /1 次/.test(peek.msg), `left=${peek.state.peekLeft} msg=「${peek.msg}」`);
+
+console.log('\n=== Q. P1：地獄模式的上鎖管與獎勵空管 ===');
+const locked = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome();
+  document.querySelector('.diff-pill[data-diff="12"]').click();
+  S.start('normal');
+  await new Promise((r) => setTimeout(r, 80));
+  const state = S.getState();
+  let idx = S.lockedTube();
+  const tubes = S.getTubes();
+  const empties = tubes.filter((t) => t.length === 0).length;
+  // 只能倒出、不能倒入：對上鎖管倒水必須被拒絕，從它倒出來必須允許
+  const srcIdx = tubes.findIndex((t) => t.length > 0 && t !== idx);
+  const before = JSON.stringify(tubes);
+  S.click(srcIdx); S.click(idx);
+  await new Promise((r) => setTimeout(r, 60));
+  const blocked = JSON.stringify(S.getTubes()) === before;
+  // 可以倒出：規則上「上鎖只擋倒入、不擋倒出」。隨機盤面不一定剛好有合法的倒出目標，
+  // 所以先找一個真的有合法倒出目標的盤面（最多重開 10 次），再驗證鎖不會擋住它。
+  let outTarget = -1, canOut = null, tries = 1;
+  for (; tries <= 10; tries++) {
+    const t = S.getTubes();
+    const top = t[idx] && t[idx].length ? t[idx][t[idx].length - 1] : null;
+    const cand = t.findIndex((x, i) => i !== idx && x.length < 4 && (x.length === 0 || (top !== null && x[x.length - 1] === top)));
+    if (cand >= 0 && S.core.canPour(t, idx, cand)) { outTarget = cand; canOut = S.canPour(idx, cand); break; }
+    S.goHome(); S.start('normal');          // 換一個盤面再找
+    await new Promise((r) => setTimeout(r, 60));
+    idx = S.lockedTube();
+  }
+  const remain = S.lockRemainMs();
+  S.unlockNow();
+  await new Promise((r) => setTimeout(r, 60));
+  return { difficulty: state.currentDifficulty, locked: idx, empties, blocked, canOut, outTarget, tries, remain, afterUnlock: S.lockedTube(), tubeCount: tubes.length };
+});
+// 空管在打亂後通常已經被填滿，因此「少給空管」表現為總管數 14（12 色 + 2）而不是 15
+ok('地獄模式（12 色）開局總管數為 14（12 色 + 2 空管；預設是 15）',
+  locked.tubeCount === 14, JSON.stringify({ tubes: locked.tubeCount, empties: locked.empties }));
+ok('地獄模式開局會上鎖一管且有解鎖倒數', locked.locked >= 0 && locked.remain > 0, JSON.stringify(locked));
+ok('上鎖管不能倒入（盤面不變）、但可以倒出（不會把顏色鎖死成死局）',
+  locked.blocked === true && (locked.canOut === true || locked.outTarget === -1),
+  JSON.stringify({ blocked: locked.blocked, canOut: locked.canOut, outTarget: locked.outTarget, tried: locked.tries }));
+ok('上鎖只擋「倒入」方向：有合法倒出目標時遊戲端允許倒出',
+  locked.outTarget === -1 || locked.canOut === true, JSON.stringify({ outTarget: locked.outTarget, canOut: locked.canOut }));
+ok('手動解鎖後就不再上鎖', locked.afterUnlock === -1);
+
+const lockTimeout = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome();
+  document.querySelector('.diff-pill[data-diff="12"]').click();
+  S.start('normal');
+  await new Promise((r) => setTimeout(r, 60));
+  // 把解鎖時間縮短（把 lockUntil 提前 → 由排程的 timer 觸發），驗證「時間到會自動解鎖」
+  const before = S.lockedTube();
+  const wait = S.lockRemainMs();
+  await new Promise((r) => setTimeout(r, Math.min(wait + 400, 9000)));
+  return { before, after: S.lockedTube(), wait };
+});
+ok('時間到會自動解鎖（不是靠步數，玩家不會卡死）',
+  lockTimeout.before >= 0 && lockTimeout.after === -1, JSON.stringify(lockTimeout));
+
+const reward = await page.evaluate(async () => {
+  const S = window.__sorting;
+  document.querySelector('.diff-pill[data-diff="6"]').click();
+  S.goHome(); S.start('normal');
+  await new Promise((r) => setTimeout(r, 60));
+  const tubes0 = S.getTubes().length;
+  const solution = S.getSolution();
+  let completedSeen = 0;
+  for (const [from, to] of solution) {
+    S.click(from); S.click(to);
+    await new Promise((r) => setTimeout(r, 0));
+    completedSeen = S.getTubes().filter((t) => t.length === 4 && t.every((c) => c === t[0])).length;
+    if (completedSeen >= 3) break;
+  }
+  await new Promise((r) => setTimeout(r, 120));
+  return { tubes0, tubesNow: S.getTubes().length, completedSeen, reward: S.rewardState().rewardGiven };
+});
+ok('每完成 3 管獎勵一個空管（補回地獄模式少給的空管）',
+  reward.completedSeen >= 3 && reward.reward === 1 && reward.tubesNow === reward.tubes0 + 1,
+  JSON.stringify(reward));
+
+console.log('\n=== R. P2：手感 juice ===');
+// reduced-motion 環境：震動應該被抑制（系統設定優先）
+const juice = await page.evaluate(async () => {
+  const S = window.__sorting;
+  // 記錄震動呼叫
+  const vibes = [];
+  navigator.vibrate = (ms) => { vibes.push(ms); return true; };
+  // 記錄倒水音效的參數（幾顆、水位）
+  const pours = [];
+  const realPour = S.core ? null : null;
+  S.goHome(); S.start('normal');
+  await new Promise((r) => setTimeout(r, 60));
+  const solution = S.getSolution();
+  // 找一個「倒完之後會露出下層顏色」的移動：來源頂部連續數 < 管內總數
+  const state = S.getTubes();
+  let revealing = null;
+  for (const [f, t] of solution) {
+    const src = state[f];
+    const top = src[src.length - 1];
+    let run = 0;
+    for (let i = src.length - 1; i >= 0 && src[i] === top; i--) run++;
+    if (run < src.length) { revealing = [f, t]; break; }
+  }
+  if (revealing) {
+    S.click(revealing[0]); S.click(revealing[1]);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  const revealedCount = document.querySelectorAll('.liquid.revealed').length;
+  return { vibes: vibes.slice(), revealedCount, found: !!revealing };
+});
+ok('reduced-motion 時不做震動（尊重系統設定）', juice.vibes.length === 0, `震動 ${juice.vibes.length} 次`);
+ok('移動後露出的下層顏色會有短高亮（盲眼模式的核心回饋）',
+  juice.found === false || juice.revealedCount > 0, `revealed=${juice.revealedCount} found=${juice.found}`);
+
+// 音效參數：用一個受控盤面驗證「倒幾顆就響幾聲、音高依水位」
+const pourInfo = await page.evaluate(async () => {
+  const S = window.__sorting;
+  S.goHome(); S.start('normal');
+  S.setTubes([[1, 1], [1, 1], []]);      // 0 → 1 倒 2 顆（目標剩 2 格），來源水位 2/4
+  S.click(0); S.click(1);
+  await new Promise((r) => setTimeout(r, 80));
+  return { info: S.pourInfo(), tubes: S.getTubes() };
+});
+ok('倒水音效吃「倒了幾顆 + 來源水位」（音畫同步，不再固定 5 聲隨機音高）',
+  pourInfo.info && pourInfo.info.drops === 2 && Math.abs(pourInfo.info.level - 0.5) < 1e-6
+  && JSON.stringify(pourInfo.tubes[1]) === JSON.stringify([1, 1, 1, 1]),
+  JSON.stringify(pourInfo));
+
+// 非 reduced-motion 的環境：震動應該真的被呼叫
+const vib = await (async () => {
+  const ctx2 = await browser.newContext({ viewport: { width: 420, height: 900 } });
+  const p2 = await ctx2.newPage();
+  await p2.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p2.waitForFunction(() => window.__sorting, undefined, { timeout: 30000 });
+  const res = await p2.evaluate(async () => {
+    const S = window.__sorting;
+    const vibes = [];
+    navigator.vibrate = (ms) => { vibes.push(ms); return true; };
+    S.goHome(); S.start('normal');
+    await new Promise((r) => setTimeout(r, 60));
+    const solution = S.getSolution();
+    S.click(solution[0][0]); S.click(solution[0][1]);
+    await new Promise((r) => setTimeout(r, 80));
+    return { vibes: vibes.slice(), reduced: S.isReducedMotion() };
+  });
+  await ctx2.close();
+  return res;
+})();
+ok('一般環境下選取／移動會震動（觸覺回饋）', vib.reduced === false && vib.vibes.length > 0,
+  `reduced=${vib.reduced} 震動 ${vib.vibes.length} 次：${vib.vibes.join(',')}`);
+
 ok('過程中沒有未捕捉的例外', errs.length === 0, errs.slice(0, 3).join(' | ') || '0 筆');
 
 await browser.close();
